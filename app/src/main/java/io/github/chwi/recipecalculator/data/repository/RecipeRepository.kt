@@ -13,7 +13,12 @@ interface RecipeRepository {
 
     fun observeRecipeCount(): Flow<Int>
 
+    /** Observe a single recipe, re-emitting on any change (e.g. pin toggled). Emits null if absent. */
+    fun observeRecipe(id: Long): Flow<RecipeWithIngredients?>
+
     suspend fun getRecipe(id: Long): RecipeWithIngredients?
+
+    suspend fun setPinned(id: Long, pinned: Boolean)
 
     suspend fun addRecipe(
         recipe: RecipeEntity,

@@ -46,6 +46,13 @@ interface RecipeDao {
     @Query("SELECT * FROM recipes WHERE id = :id")
     suspend fun getRecipeWithIngredients(id: Long): RecipeWithIngredients?
 
+    @Transaction
+    @Query("SELECT * FROM recipes WHERE id = :id")
+    fun observeRecipeWithIngredients(id: Long): Flow<RecipeWithIngredients?>
+
     @Query("SELECT COUNT(*) FROM recipes")
     fun observeRecipeCount(): Flow<Int>
+
+    @Query("UPDATE recipes SET pinned = :pinned WHERE id = :id")
+    suspend fun setPinned(id: Long, pinned: Boolean)
 }

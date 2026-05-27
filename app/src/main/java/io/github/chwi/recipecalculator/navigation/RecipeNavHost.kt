@@ -35,10 +35,9 @@ fun RecipeNavHost(
                     onAddRecipe = { navController.navigate(RecipeEditor()) },
                 )
             }
-            composable<RecipeDetail> { entry ->
-                val detail = entry.toRoute<RecipeDetail>()
+            composable<RecipeDetail> {
                 RecipeDetailScreen(
-                    recipeId = detail.recipeId,
+                    onBack = { navController.popBackStack() },
                     onEdit = { navController.navigate(RecipeEditor(it)) },
                 )
             }

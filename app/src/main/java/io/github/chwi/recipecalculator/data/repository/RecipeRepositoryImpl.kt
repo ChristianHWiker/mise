@@ -19,8 +19,14 @@ class RecipeRepositoryImpl @Inject constructor(
 
     override fun observeRecipeCount(): Flow<Int> = dao.observeRecipeCount()
 
+    override fun observeRecipe(id: Long): Flow<RecipeWithIngredients?> =
+        dao.observeRecipeWithIngredients(id)
+
     override suspend fun getRecipe(id: Long): RecipeWithIngredients? =
         dao.getRecipeWithIngredients(id)
+
+    override suspend fun setPinned(id: Long, pinned: Boolean) =
+        dao.setPinned(id, pinned)
 
     override suspend fun addRecipe(
         recipe: RecipeEntity,
