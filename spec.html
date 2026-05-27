@@ -382,13 +382,13 @@
 <main>
 
 <header class="doc">
-  <div class="eyebrow">Implementation Spec · v0.1 draft</div>
+  <div class="eyebrow">Implementation Spec · v0.2 draft</div>
   <h1>Recipe Calculator</h1>
   <p class="lede">A mobile-first recipe manager that scales recipes the way cooks actually think — fractional units, smart rounding, and reverse scaling from a single limiting ingredient.</p>
   <div class="meta">
     <span><strong>Owner</strong> &nbsp;chwi@pelias.no</span>
     <span><strong>Status</strong> &nbsp;Drafting</span>
-    <span><strong>Target</strong> &nbsp;Play Store, Android first</span>
+    <span><strong>Target</strong> &nbsp;Play Store · native Android</span>
   </div>
 </header>
 
@@ -419,7 +419,7 @@
       <tr><td>Meal planning &amp; pantry tracking</td><td>Separate product surface. Easy to add later once recipes are solid.</td></tr>
       <tr><td>Nutrition / calorie tracking</td><td>Different domain. Existing apps do it well — no reason to compete here.</td></tr>
       <tr><td>Cooking-time scaling</td><td>Time doesn't scale linearly with volume. Better to <em>not</em> scale than to scale wrong.</td></tr>
-      <tr><td>iOS in v1</td><td>RN keeps the door open. Ship Android first, learn, port later.</td></tr>
+      <tr><td>iOS in v1</td><td>Native Android is a deliberate single-platform bet — depth over reach. iOS is a future rewrite or a KMP extraction, not a v1 concern.</td></tr>
       <tr><td>Fully autonomous OCR</td><td>OCR will require a confirmation screen. No silent ingestion in v1.</td></tr>
     </tbody>
   </table>
@@ -431,9 +431,11 @@
 
   <h3>Stack</h3>
   <ul>
-    <li><strong>React Native (Expo)</strong> with TypeScript for the cross-platform shell and UI.</li>
-    <li><strong>One Kotlin native module</strong> wrapping Android ML Kit text recognition for the camera/OCR path.</li>
-    <li><strong>SQLite</strong> for local persistence (via <code>expo-sqlite</code>; revisit WatermelonDB if reactivity becomes painful).</li>
+    <li><strong>Native Android — Kotlin + Jetpack Compose</strong> (Material 3). Single-platform, no XML layouts.</li>
+    <li><strong>MVVM + Coroutines/Flow</strong> for state; <strong>Hilt</strong> for dependency injection; <strong>Navigation Compose</strong> (single-activity).</li>
+    <li><strong>Room</strong> for local persistence (SQLite underneath) with versioned, forward-only migrations.</li>
+    <li><strong>ML Kit Text Recognition</strong> (on-device) + <strong>CameraX</strong> for the camera/OCR path — the native API used directly, no JS bridge.</li>
+    <li><strong>AndroidX Biometric, Jetpack Security/Keystore, Play Integrity</strong> for app lock, encrypted storage, and integrity/anti-tampering.</li>
     <li><strong>Rational quantities</strong> — numerator/denominator integers, never floats — so <code>3/4 + 1/8</code> stays exact.</li>
     <li><strong>Ingredient density table</strong> — curated lookup (~150 common ingredients) for volume↔mass conversion.</li>
   </ul>
@@ -441,28 +443,28 @@
   <h3>Why this, not that</h3>
   <div class="why-grid">
     <div class="why-card">
-      <h5>RN over Flutter</h5>
-      <p>Stronger job-market signal in EU/Norway. Flutter has nicer DX but RN is more frequently named in listings.</p>
+      <h5>Native Kotlin over React Native</h5>
+      <p>The target listing accepts either, but every bonus criterion — camera, biometrics, secure storage, integrity, on-device ML — is a native API. Native depth is the differentiated signal.</p>
     </div>
     <div class="why-card">
-      <h5>Kotlin native module, not pure JS</h5>
-      <p>ML Kit is a native API. Wrapping it as a JS-bridged Kotlin module also showcases native Android skill — a deliberate portfolio signal.</p>
+      <h5>Jetpack Compose over XML views</h5>
+      <p>Declarative UI is the modern Android standard and what current listings expect. Shows present-day skills, not legacy <code>findViewById</code> habits.</p>
+    </div>
+    <div class="why-card">
+      <h5>ML Kit direct, not a JS bridge</h5>
+      <p>OCR was the riskiest part of the old plan. Going native turns an RN↔Kotlin bridge into a plain on-device API call — less risk, no round-trip, no privacy story to defend.</p>
+    </div>
+    <div class="why-card">
+      <h5>A dedicated security phase</h5>
+      <p>Biometric app lock, Keystore-backed encryption, and Play Integrity attestation map straight onto the listing's "secure storage, integrity, anti-tampering" bullet.</p>
     </div>
     <div class="why-card">
       <h5>Local-only v1</h5>
       <p>Sync is infrastructure. Ship the core UX first; add accounts when there's evidence anyone wants their recipes on two devices.</p>
     </div>
     <div class="why-card">
-      <h5>OCR with confirmation screen</h5>
-      <p>Bounded scope. Recognizing text is solved. Parsing OCR output into clean structured ingredients is not — confirmation keeps quality honest.</p>
-    </div>
-    <div class="why-card">
       <h5>Rational quantities, not floats</h5>
       <p>Fractional display "just works" with no rounding loss. Floats force display-time reconstruction and accumulate error across operations.</p>
-    </div>
-    <div class="why-card">
-      <h5>SQLite, not a JSON file</h5>
-      <p>Search, indexing, and migration story all need a real DB once recipe count grows. Cheap to set up via Expo.</p>
     </div>
   </div>
 </section>
@@ -493,9 +495,9 @@
       </style>
 
       <!-- Layer labels -->
-      <text x="20" y="40" class="layer">UI · React Native</text>
-      <text x="20" y="180" class="layer">Domain · TypeScript</text>
-      <text x="20" y="320" class="layer">Platform · Native + Storage</text>
+      <text x="20" y="40" class="layer">UI · Jetpack Compose</text>
+      <text x="20" y="180" class="layer">Domain · Kotlin</text>
+      <text x="20" y="320" class="layer">Platform · Room · ML Kit · Security</text>
 
       <!-- UI layer -->
       <rect class="box" x="30" y="55" width="160" height="60"/>
@@ -533,12 +535,16 @@
 
       <!-- Platform layer -->
       <rect class="box" x="30" y="335" width="200" height="60"/>
-      <text x="130" y="360" text-anchor="middle" class="lbl">SQLite (expo-sqlite)</text>
+      <text x="130" y="360" text-anchor="middle" class="lbl">Room (SQLite)</text>
       <text x="130" y="378" text-anchor="middle" class="sub">Local-only · Migrations</text>
 
-      <rect class="box-accent" x="390" y="335" width="200" height="60"/>
-      <text x="490" y="360" text-anchor="middle" class="lbl">Kotlin native module</text>
-      <text x="490" y="378" text-anchor="middle" class="sub">ML Kit text recognition</text>
+      <rect class="box-accent" x="300" y="335" width="180" height="60"/>
+      <text x="390" y="360" text-anchor="middle" class="lbl">ML Kit + CameraX</text>
+      <text x="390" y="378" text-anchor="middle" class="sub">On-device OCR · capture</text>
+
+      <rect class="box" x="550" y="335" width="200" height="60"/>
+      <text x="650" y="360" text-anchor="middle" class="lbl">Security</text>
+      <text x="650" y="378" text-anchor="middle" class="sub">Keystore · Biometric · Integrity</text>
 
       <!-- Edges -->
       <!-- UI to Domain -->
@@ -554,9 +560,10 @@
 
       <!-- Domain to Platform -->
       <path class="edge" d="M110 255 V 335" marker-end="url(#arrow)"/>
-      <path class="edge edge-accent" d="M470 255 V 335" marker-end="url(#arrow-accent)"/>
+      <path class="edge edge-accent" d="M470 255 V 295 H 390 V 335" marker-end="url(#arrow-accent)"/>
+      <path class="edge" d="M650 255 V 335" marker-end="url(#arrow)"/>
     </svg>
-    <div class="caption">Solid lines: standard data flow. Dashed/orange: the OCR sidecar — camera capture goes through the Kotlin native module and back into the parser for confirmation.</div>
+    <div class="caption">Solid lines: standard data flow. Dashed/orange: the OCR sidecar — CameraX capture runs ML Kit on-device, feeding parsed lines back to the confirmation screen. Security spans storage and the app lifecycle.</div>
   </div>
 </section>
 
@@ -564,49 +571,49 @@
   <h2>Data model</h2>
   <p class="section-sub">The minimum viable shape. Lossless quantities are the load-bearing choice.</p>
 
-  <pre class="code"><div class="code-bar"><span>data-model.ts</span><span class="lang">TypeScript</span></div><code><span class="tok-c">// Rational quantity — never lose 3/4 to a float.</span>
-<span class="tok-k">type</span> <span class="tok-t">Quantity</span> = { num: <span class="tok-t">number</span>; den: <span class="tok-t">number</span> };
+  <pre class="code"><div class="code-bar"><span>data/model/Recipe.kt</span><span class="lang">Kotlin</span></div><code><span class="tok-c">// Rational quantity — never lose 3/4 to a float.</span>
+<span class="tok-k">data class</span> <span class="tok-t">Quantity</span>(<span class="tok-k">val</span> num: <span class="tok-t">Int</span>, <span class="tok-k">val</span> den: <span class="tok-t">Int</span>)
 
-<span class="tok-k">type</span> <span class="tok-t">UnitSystem</span> = <span class="tok-s">"metric"</span> | <span class="tok-s">"us"</span>;
-<span class="tok-k">type</span> <span class="tok-t">UnitKind</span>   = <span class="tok-s">"volume"</span> | <span class="tok-s">"mass"</span> | <span class="tok-s">"count"</span> | <span class="tok-s">"length"</span>;
+<span class="tok-k">enum class</span> <span class="tok-t">UnitSystem</span> { <span class="tok-n">METRIC</span>, <span class="tok-n">US</span> }
+<span class="tok-k">enum class</span> <span class="tok-t">UnitKind</span>   { <span class="tok-n">VOLUME</span>, <span class="tok-n">MASS</span>, <span class="tok-n">COUNT</span>, <span class="tok-n">LENGTH</span> }
 
-<span class="tok-k">interface</span> <span class="tok-t">Unit</span> {
-  code: <span class="tok-t">string</span>;            <span class="tok-c">// "cup", "g", "tsp", "ea"</span>
-  kind: <span class="tok-t">UnitKind</span>;
-  system: <span class="tok-t">UnitSystem</span>;
-  baseFactor: <span class="tok-t">number</span>;      <span class="tok-c">// convert to canonical (ml or g)</span>
-}
+<span class="tok-k">data class</span> <span class="tok-t">MeasureUnit</span>(
+  <span class="tok-k">val</span> code: <span class="tok-t">String</span>,        <span class="tok-c">// "cup", "g", "tsp", "ea"</span>
+  <span class="tok-k">val</span> kind: <span class="tok-t">UnitKind</span>,
+  <span class="tok-k">val</span> system: <span class="tok-t">UnitSystem</span>,
+  <span class="tok-k">val</span> baseFactor: <span class="tok-t">Double</span>,  <span class="tok-c">// convert to canonical (ml or g)</span>
+)
 
-<span class="tok-k">interface</span> <span class="tok-t">Ingredient</span> {
-  id: <span class="tok-t">string</span>;
-  name: <span class="tok-t">string</span>;            <span class="tok-c">// "all-purpose flour"</span>
-  quantity: <span class="tok-t">Quantity</span>;
-  unit: <span class="tok-t">string</span>;            <span class="tok-c">// Unit.code</span>
-  modifier?: <span class="tok-t">string</span>;       <span class="tok-c">// "sifted", "room temp"</span>
-  optional?: <span class="tok-t">boolean</span>;
-  order: <span class="tok-t">number</span>;
-}
+@<span class="tok-t">Entity</span>(tableName = <span class="tok-s">"ingredients"</span>)
+<span class="tok-k">data class</span> <span class="tok-t">Ingredient</span>(
+  @<span class="tok-t">PrimaryKey</span> <span class="tok-k">val</span> id: <span class="tok-t">String</span>,
+  <span class="tok-k">val</span> name: <span class="tok-t">String</span>,        <span class="tok-c">// "all-purpose flour"</span>
+  @<span class="tok-t">Embedded</span> <span class="tok-k">val</span> quantity: <span class="tok-t">Quantity</span>,
+  <span class="tok-k">val</span> unit: <span class="tok-t">String</span>,        <span class="tok-c">// MeasureUnit.code</span>
+  <span class="tok-k">val</span> modifier: <span class="tok-t">String</span>?,   <span class="tok-c">// "sifted", "room temp"</span>
+  <span class="tok-k">val</span> optional: <span class="tok-t">Boolean</span> = <span class="tok-k">false</span>,
+  <span class="tok-k">val</span> position: <span class="tok-t">Int</span>,
+)
 
-<span class="tok-k">interface</span> <span class="tok-t">Recipe</span> {
-  id: <span class="tok-t">string</span>;
-  title: <span class="tok-t">string</span>;
-  servings: <span class="tok-t">number</span>;
-  ingredients: <span class="tok-t">Ingredient</span>[];
-  steps: <span class="tok-t">string</span>[];
-  tags: <span class="tok-t">string</span>[];
-  photoUri?: <span class="tok-t">string</span>;
-  sourceUrl?: <span class="tok-t">string</span>;
-  defaultUnitSystem: <span class="tok-t">UnitSystem</span>;
-  createdAt: <span class="tok-t">number</span>;
-  updatedAt: <span class="tok-t">number</span>;
-}
+@<span class="tok-t">Entity</span>(tableName = <span class="tok-s">"recipes"</span>)
+<span class="tok-k">data class</span> <span class="tok-t">Recipe</span>(
+  @<span class="tok-t">PrimaryKey</span> <span class="tok-k">val</span> id: <span class="tok-t">String</span>,
+  <span class="tok-k">val</span> title: <span class="tok-t">String</span>,
+  <span class="tok-k">val</span> servings: <span class="tok-t">Int</span>,
+  <span class="tok-k">val</span> photoUri: <span class="tok-t">String</span>?,
+  <span class="tok-k">val</span> sourceUrl: <span class="tok-t">String</span>?,
+  <span class="tok-k">val</span> defaultUnitSystem: <span class="tok-t">UnitSystem</span>,
+  <span class="tok-k">val</span> createdAt: <span class="tok-t">Long</span>,
+  <span class="tok-k">val</span> updatedAt: <span class="tok-t">Long</span>,
+)
+<span class="tok-c">// Ingredients, steps, and tags hang off Recipe via Room @Relation.</span>
 
 <span class="tok-c">// Curated table — gramsPerCup for ingredient-aware conversion.</span>
-<span class="tok-k">interface</span> <span class="tok-t">Density</span> {
-  ingredientKey: <span class="tok-t">string</span>; <span class="tok-c">// normalized: "flour-ap", "sugar-granulated"</span>
-  gramsPerCup: <span class="tok-t">number</span>;
-  aliases: <span class="tok-t">string</span>[];     <span class="tok-c">// "plain flour", "AP flour"</span>
-}
+<span class="tok-k">data class</span> <span class="tok-t">Density</span>(
+  <span class="tok-k">val</span> ingredientKey: <span class="tok-t">String</span>, <span class="tok-c">// "flour-ap", "sugar-granulated"</span>
+  <span class="tok-k">val</span> gramsPerCup: <span class="tok-t">Double</span>,
+  <span class="tok-k">val</span> aliases: <span class="tok-t">List</span>&lt;<span class="tok-t">String</span>&gt;,  <span class="tok-c">// "plain flour", "AP flour"</span>
+)
 </code></pre>
 
   <div class="callout accent">
@@ -624,16 +631,16 @@
     <div class="phase">
       <div>
         <h4><span class="phase-num">00</span>Foundations</h4>
-        <p style="margin:0; font-size: 14px; color: var(--text-muted);">Expo TS project skeleton, navigation, theme tokens, SQLite migrations, rational-number utility with tests.</p>
+        <p style="margin:0; font-size: 14px; color: var(--text-muted);">Android Studio Kotlin project, Gradle Kotlin DSL + version catalog, Compose + Material 3 theme, Navigation Compose shell, Hilt, Room migrations, rational-number library with JUnit tests.</p>
       </div>
       <div class="est">~1 week</div>
-      <div class="done"><strong>Done when:</strong> app builds and runs on emulator; a dev-only screen can insert a recipe and read it back from SQLite.</div>
+      <div class="done"><strong>Done when:</strong> app builds and runs on emulator; a dev-only screen can insert a recipe and read it back from Room.</div>
     </div>
 
     <div class="phase">
       <div>
         <h4><span class="phase-num">01</span>Recipe CRUD</h4>
-        <p style="margin:0; font-size: 14px; color: var(--text-muted);">List, detail, create/edit screens. Structured ingredient editor (qty, unit, name, modifier). Tags, search, favorites.</p>
+        <p style="margin:0; font-size: 14px; color: var(--text-muted);">List, detail, create/edit Compose screens. Structured ingredient editor (qty, unit, name, modifier). Tags, search, favorites. MVVM + Flow wiring.</p>
       </div>
       <div class="est">~1–2 weeks</div>
       <div class="done"><strong>Done when:</strong> user can manually enter a real recipe, save it, find it via search or tags, edit it, delete it.</div>
@@ -642,7 +649,7 @@
     <div class="phase">
       <div>
         <h4><span class="phase-num">02</span>Scaling engine</h4>
-        <p style="margin:0; font-size: 14px; color: var(--text-muted);">Forward scaling by servings. Reverse scaling by limiting ingredient. Fractional display. Smart rounding (counts → integer, volumes/masses → nearest "useful" fraction).</p>
+        <p style="margin:0; font-size: 14px; color: var(--text-muted);">Forward scaling by servings. Reverse scaling by limiting ingredient. Fractional display. Smart rounding (counts → integer, volumes/masses → nearest "useful" fraction). Pure Kotlin, unit-tested.</p>
       </div>
       <div class="est">~1 week</div>
       <div class="done"><strong>Done when:</strong> a 4-serving recipe scaled to 6 displays sensible fractions; reverse-scaling from any ingredient produces correct totals; whole-unit ingredients round.</div>
@@ -660,7 +667,7 @@
     <div class="phase">
       <div>
         <h4><span class="phase-num">04</span>OCR (camera capture)</h4>
-        <p style="margin:0; font-size: 14px; color: var(--text-muted);">Kotlin native module wrapping ML Kit text recognition. JS bridge. Ingredient line parser (regex + heuristics). Confirmation screen with editable parsed rows.</p>
+        <p style="margin:0; font-size: 14px; color: var(--text-muted);">CameraX capture flow. ML Kit on-device text recognition (called directly, no bridge). Ingredient line parser (regex + heuristics). Confirmation screen with editable parsed rows.</p>
       </div>
       <div class="est">~2 weeks</div>
       <div class="done"><strong>Done when:</strong> user can photograph a printed ingredient list, see parsed rows on a confirmation screen, fix any mis-parses inline, and save as a new recipe.</div>
@@ -668,7 +675,16 @@
 
     <div class="phase">
       <div>
-        <h4><span class="phase-num">05</span>Polish &amp; launch</h4>
+        <h4><span class="phase-num">05</span>Security &amp; hardening</h4>
+        <p style="margin:0; font-size: 14px; color: var(--text-muted);">Biometric app lock (AndroidX Biometric). Keystore-backed encryption for sensitive prefs / lockable recipes (Jetpack Security). Play Integrity attestation on launch. Basic anti-tampering signals; scoped backup rules.</p>
+      </div>
+      <div class="est">~1–1.5 weeks</div>
+      <div class="done"><strong>Done when:</strong> the app can be locked behind biometric auth; sensitive data is encrypted at rest; a failed Integrity verdict is detected and handled gracefully.</div>
+    </div>
+
+    <div class="phase">
+      <div>
+        <h4><span class="phase-num">06</span>Polish &amp; launch</h4>
         <p style="margin:0; font-size: 14px; color: var(--text-muted);">Onboarding flow. Settings (default units, default servings). App icon, splash screen, store assets. Signed AAB. Privacy policy. Play Store internal testing track.</p>
       </div>
       <div class="est">~1 week</div>
@@ -677,7 +693,7 @@
 
   </div>
 
-  <p style="margin-top: 24px; font-size: 13.5px; color: var(--text-muted);">Total estimate: <strong style="color: var(--text);">~7–8 weeks</strong> part-time. Phases 0–3 ship a credible app on their own; phase 4 is where the differentiator lands; phase 5 is launch hygiene.</p>
+  <p style="margin-top: 24px; font-size: 13.5px; color: var(--text-muted);">Total estimate: <strong style="color: var(--text);">~9–11 weeks</strong> part-time. Phases 0–3 ship a credible app on their own; phase 4 lands the headline differentiator; phase 5 turns the job listing's "nice to have" security bullets into shipped features; phase 6 is launch hygiene.</p>
 </section>
 
 <section id="sketches">
@@ -685,49 +701,47 @@
   <p class="section-sub">Shapes, not implementations. Just enough to pressure-test the boundaries.</p>
 
   <h3>Scaling engine signature</h3>
-  <pre class="code"><div class="code-bar"><span>scaling.ts</span><span class="lang">TypeScript</span></div><code><span class="tok-c">// Forward: "scale to N servings"</span>
-<span class="tok-k">function</span> <span class="tok-n">scaleByServings</span>(
-  recipe: <span class="tok-t">Recipe</span>,
-  targetServings: <span class="tok-t">number</span>
-): <span class="tok-t">Recipe</span>;
+  <pre class="code"><div class="code-bar"><span>domain/Scaling.kt</span><span class="lang">Kotlin</span></div><code><span class="tok-c">// Forward: "scale to N servings"</span>
+<span class="tok-k">fun</span> <span class="tok-n">scaleByServings</span>(recipe: <span class="tok-t">Recipe</span>, targetServings: <span class="tok-t">Int</span>): <span class="tok-t">Recipe</span>
 
 <span class="tok-c">// Reverse: "I have this much of one ingredient — scale everything to match"</span>
-<span class="tok-k">function</span> <span class="tok-n">scaleByIngredient</span>(
+<span class="tok-k">fun</span> <span class="tok-n">scaleByIngredient</span>(
   recipe: <span class="tok-t">Recipe</span>,
-  ingredientId: <span class="tok-t">string</span>,
+  ingredientId: <span class="tok-t">String</span>,
   availableQty: <span class="tok-t">Quantity</span>,
-  availableUnit: <span class="tok-t">string</span>
-): <span class="tok-t">Recipe</span>;
+  availableUnit: <span class="tok-t">String</span>,
+): <span class="tok-t">Recipe</span>
 
 <span class="tok-c">// Smart rounding lives here — applied after scaling, before display.</span>
-<span class="tok-k">function</span> <span class="tok-n">roundForDisplay</span>(
-  qty: <span class="tok-t">Quantity</span>,
-  unitKind: <span class="tok-t">UnitKind</span>
-): { displayed: <span class="tok-t">Quantity</span>; adjusted: <span class="tok-t">boolean</span> };
+<span class="tok-k">data class</span> <span class="tok-t">Rounded</span>(<span class="tok-k">val</span> displayed: <span class="tok-t">Quantity</span>, <span class="tok-k">val</span> adjusted: <span class="tok-t">Boolean</span>)
+
+<span class="tok-k">fun</span> <span class="tok-n">roundForDisplay</span>(qty: <span class="tok-t">Quantity</span>, unitKind: <span class="tok-t">UnitKind</span>): <span class="tok-t">Rounded</span>
 </code></pre>
 
-  <h3>Native module surface (Kotlin side)</h3>
-  <pre class="code"><div class="code-bar"><span>OcrModule.kt</span><span class="lang">Kotlin</span></div><code><span class="tok-k">class</span> <span class="tok-t">OcrModule</span>(reactContext: <span class="tok-t">ReactApplicationContext</span>) :
-    <span class="tok-t">ReactContextBaseJavaModule</span>(reactContext) {
-
-  <span class="tok-k">override fun</span> <span class="tok-n">getName</span>() = <span class="tok-s">"OcrModule"</span>
-
-  <span class="tok-c">// JS calls: NativeModules.OcrModule.recognizeText(uri)</span>
-  <span class="tok-c">// Returns: { lines: string[], confidence: number }</span>
-  @ReactMethod
-  <span class="tok-k">fun</span> <span class="tok-n">recognizeText</span>(imageUri: <span class="tok-t">String</span>, promise: <span class="tok-t">Promise</span>) { ... }
+  <h3>OCR service (on-device ML Kit)</h3>
+  <pre class="code"><div class="code-bar"><span>data/ocr/OcrService.kt</span><span class="lang">Kotlin</span></div><code><span class="tok-c">// On-device. Wraps ML Kit Text Recognition behind a clean interface —</span>
+<span class="tok-c">// no network, no JS bridge. Called from a ViewModel via coroutines.</span>
+<span class="tok-k">interface</span> <span class="tok-t">OcrService</span> {
+  <span class="tok-k">suspend fun</span> <span class="tok-n">recognizeText</span>(image: <span class="tok-t">Uri</span>): <span class="tok-t">OcrResult</span>
 }
+
+<span class="tok-k">data class</span> <span class="tok-t">OcrResult</span>(
+  <span class="tok-k">val</span> lines: <span class="tok-t">List</span>&lt;<span class="tok-t">String</span>&gt;,
+  <span class="tok-k">val</span> confidence: <span class="tok-t">Float</span>,
+)
 </code></pre>
 
   <h3>Ingredient parser contract</h3>
-  <pre class="code"><div class="code-bar"><span>parser.ts</span><span class="lang">TypeScript</span></div><code><span class="tok-c">// Input: one line of OCR'd text — e.g. "1 1/2 cups all-purpose flour, sifted"</span>
+  <pre class="code"><div class="code-bar"><span>domain/IngredientParser.kt</span><span class="lang">Kotlin</span></div><code><span class="tok-c">// Input: one line of OCR'd text — e.g. "1 1/2 cups all-purpose flour, sifted"</span>
 <span class="tok-c">// Output: best-effort structured ingredient + a confidence score.</span>
-<span class="tok-c">// Confidence below threshold → confirmation screen highlights row as "needs review".</span>
-<span class="tok-k">function</span> <span class="tok-n">parseIngredientLine</span>(line: <span class="tok-t">string</span>): {
-  ingredient: <span class="tok-t">Partial</span>&lt;<span class="tok-t">Ingredient</span>&gt;;
-  confidence: <span class="tok-t">number</span>; <span class="tok-c">// 0..1</span>
-  rawText: <span class="tok-t">string</span>;
-};
+<span class="tok-c">// Confidence below threshold → confirmation screen flags the row as "needs review".</span>
+<span class="tok-k">data class</span> <span class="tok-t">ParsedLine</span>(
+  <span class="tok-k">val</span> ingredient: <span class="tok-t">Ingredient</span>,  <span class="tok-c">// best-effort; fields may be blank</span>
+  <span class="tok-k">val</span> confidence: <span class="tok-t">Float</span>,       <span class="tok-c">// 0..1</span>
+  <span class="tok-k">val</span> rawText: <span class="tok-t">String</span>,
+)
+
+<span class="tok-k">fun</span> <span class="tok-n">parseIngredientLine</span>(line: <span class="tok-t">String</span>): <span class="tok-t">ParsedLine</span>
 </code></pre>
 </section>
 
@@ -741,7 +755,7 @@
     <tbody>
       <tr>
         <td>Final app name &amp; package id. <em>Recipe Calculator</em> is the working title.</td>
-        <td>Phase 05 (store listing)</td>
+        <td>Phase 06 (store listing)</td>
         <td>Unknown</td>
       </tr>
       <tr>
@@ -751,7 +765,7 @@
       </tr>
       <tr>
         <td>Default unit system on first launch — locale-detect or prompt the user?</td>
-        <td>Phase 05</td>
+        <td>Phase 06</td>
         <td>Locale-detect with override during onboarding.</td>
       </tr>
       <tr>
@@ -760,9 +774,9 @@
         <td>Tags only. Categories collapse to "tag with a special name".</td>
       </tr>
       <tr>
-        <td>SQLite directly via <code>expo-sqlite</code>, or WatermelonDB for reactive queries?</td>
-        <td>Phase 00</td>
-        <td>Start with <code>expo-sqlite</code>. Migrate if reactivity becomes painful.</td>
+        <td>How hard should the Play Integrity response be — block the app, or degrade gracefully on a failed verdict?</td>
+        <td>Phase 05</td>
+        <td>Degrade, don't block. A portfolio app shouldn't lock out a real user over a flaky attestation; log it and soft-warn.</td>
       </tr>
       <tr>
         <td>Where does the density table come from? Curate manually, or seed from USDA FoodData Central?</td>
@@ -797,9 +811,14 @@
         <td>Always show an <em>adjusted</em> marker beside rounded values. Tap reveals the exact unrounded number.</td>
       </tr>
       <tr>
-        <td>Native module bridge work eats more time than planned.</td>
+        <td>Jetpack Compose learning curve slows the early phases more than estimated.</td>
         <td><span class="pill info">Info</span></td>
-        <td>De-risk in phase 00 — get a "hello world" Kotlin module returning a string into JS before phase 01 starts. If it's painful, the OCR phase's estimate doubles, not the rest of the project.</td>
+        <td>Phase 00 is deliberately a Compose warm-up (theme, nav shell, dev screen) before any hard feature work. The curve is also the portfolio point — budget for it, don't fight it.</td>
+      </tr>
+      <tr>
+        <td>Play Integrity / anti-tampering work is fiddly and device-dependent.</td>
+        <td><span class="pill info">Info</span></td>
+        <td>Treat attestation as soft-fail (see open questions). Test on a physical device early in phase 05; keep the security surface small and well-scoped.</td>
       </tr>
       <tr>
         <td>Play Store rejection on first submission (icon, privacy policy, permissions justification).</td>
@@ -819,10 +838,10 @@
   <h2>Portfolio angle</h2>
   <p class="section-sub">What this project demonstrates if you point a recruiter at the repo.</p>
   <ul>
-    <li><strong>Cross-platform mobile.</strong> Modern React Native + Expo + TypeScript, the stack most EU/Norwegian listings actually ask for.</li>
-    <li><strong>Native interop.</strong> A real Kotlin native module bridged into JS — shows you can drop into platform code when the JS layer can't reach.</li>
-    <li><strong>On-device ML.</strong> ML Kit text recognition running locally, no server round-trip, no privacy story to defend.</li>
-    <li><strong>Domain modeling.</strong> Rational quantities, ingredient-aware unit conversion, smart rounding — non-trivial logic that's easy to evaluate.</li>
+    <li><strong>Modern native Android.</strong> Kotlin + Jetpack Compose + Coroutines/Flow + Hilt + Room — the current standard stack, mapped directly onto the target listing.</li>
+    <li><strong>On-device ML + camera.</strong> ML Kit text recognition over a CameraX capture flow, running locally — hits two "nice to have" bullets at once, no server, no privacy story to defend.</li>
+    <li><strong>Mobile security.</strong> Biometric lock, Keystore-backed encryption, and Play Integrity attestation — the "secure storage, integrity, anti-tampering" line, shipped.</li>
+    <li><strong>Domain modeling.</strong> Rational quantities, ingredient-aware unit conversion, smart rounding — non-trivial logic that's easy to evaluate from the code.</li>
     <li><strong>Shipped, not just coded.</strong> A live Play Store listing (even internal testing) ends every "have you shipped?" conversation in one sentence.</li>
   </ul>
 

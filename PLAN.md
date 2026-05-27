@@ -1,76 +1,90 @@
 # Phase 00 — Foundations Plan
 
 ## Context
-Greenfield React Native (Expo) recipe calculator app. Phase 00 lays the foundation: project skeleton, navigation, theme, SQLite, and rational-number math library. Everything downstream depends on these choices being solid.
+Greenfield native Android (Kotlin) recipe calculator app. Phase 00 lays the foundation: project skeleton, navigation, theme, persistence, and the rational-number math library. Everything downstream depends on these choices being solid.
 
 ## Decisions
-- **Expo SDK 52** (latest stable)
-- **Expo Router** (file-based navigation — modern standard, portfolio signal)
-- **Custom theme system** (lightweight tokens, no UI library dependency — shows design system skill)
-- **expo-sqlite** for persistence
-- **Rational math as a pure TS library** with tests
+- **Kotlin + Jetpack Compose + Material 3** (modern Android standard, strong portfolio signal)
+- **Single-activity, Navigation Compose** for file-free, type-safe navigation
+- **MVVM with Coroutines + Flow**; **Hilt** for DI
+- **Room** for persistence (replaces the earlier expo-sqlite plan)
+- **Rational math as a pure Kotlin library** with JUnit tests
+- Stack picked to set up the later "nice to have" wins from the target listing: on-device ML (ML Kit), camera (CameraX), biometrics, secure storage, Play Integrity — added in their respective phases, not Phase 00.
 
 ## Implementation Steps
 
 ### 1. Project scaffold
-- `npx create-expo-app@latest` with TypeScript template
-- Configure Expo Router (app/ directory structure)
-- Git init + .gitignore
+- New Android Studio project, Kotlin, **Gradle Kotlin DSL** + **version catalog** (`libs.versions.toml`)
+- Compose enabled, Material 3, Hilt set up, single `MainActivity`
+- minSdk 24 / target latest stable; Git init + `.gitignore`
 
 ### 2. Navigation shell
-- Tab navigator: Recipes, Settings (minimal for now)
-- Stack screens within Recipes tab: List, Detail, Editor (placeholder screens)
-- Camera tab placeholder (for OCR later)
+- `NavHost` with bottom navigation bar: **Recipes**, **Settings**
+- Recipes graph: List → Detail → Editor (placeholder composables)
+- Camera/capture route stubbed for OCR later
 
 ### 3. Theme system
-- `src/theme/` — color tokens (light mode only for v1), spacing scale, typography scale
-- ThemeProvider via React Context
-- `useTheme()` hook
-- Tokens inspired by the spec's CSS variables (warm neutrals, orange accent)
+- `ui/theme/` — Material 3 `ColorScheme`, `Typography`, spacing tokens (light mode only for v1)
+- Tokens drawn from the spec's palette (warm neutrals, orange accent)
+- Wrap app in app `Theme {}`; verify tokens apply across placeholder screens
 
 ### 4. Rational number library
-- `src/lib/rational.ts` — core type `{ num: number; den: number }`
-- Operations: add, subtract, multiply, divide, simplify (GCD-based), compare
-- `toFraction()` display: renders as "3/4", "1 1/2", whole numbers as "2"
+- `core/rational/Rational.kt` — core type `data class Rational(val num: Int, val den: Int)`
+- Operations: add, subtract, multiply, divide, simplify (GCD-based), compare (`Comparable`)
+- `toDisplay()`: renders "3/4", "1 1/2", whole numbers as "2"
 - `fromDecimal()`, `fromString()` parsers ("1 1/2", "3/4", "0.75")
-- Full test suite (this is the load-bearing math — tests are non-negotiable)
+- Full JUnit test suite (this is the load-bearing math — tests are non-negotiable)
 
-### 5. SQLite setup
-- `src/db/` — database module using expo-sqlite
-- Migration system (versioned, forward-only)
-- Migration 001: recipes table, ingredients table, tags table
+### 5. Room setup
+- `data/db/` — `RecipeDatabase` (Room), DAOs, versioned migrations
+- Migration 001: recipes, ingredients, tags tables
 - Schema matches the spec's data model (quantities stored as num/den integer columns)
 - Dev-only screen to insert + read back a recipe (Phase 00 "done when" criteria)
 
 ## Project structure
 ```
-app/                    # Expo Router file-based routes
-  (tabs)/
-    recipes/
-      index.tsx         # Recipe list
-      [id].tsx          # Recipe detail
-      editor.tsx        # Create/edit
-    settings.tsx
-  _layout.tsx           # Root layout + tab navigator
-src/
-  lib/
-    rational.ts         # Rational number math
-    rational.test.ts    # Tests
-  db/
-    database.ts         # DB init + migration runner
-    migrations/         # Numbered SQL migrations
-    recipes.ts          # Recipe CRUD queries
-  theme/
-    tokens.ts           # Colors, spacing, typography
-    ThemeProvider.tsx
-    useTheme.ts
-  types/
-    recipe.ts           # Recipe, Ingredient, Quantity, Unit types
+app/
+  src/main/java/<pkg>/
+    MainActivity.kt
+    RecipeApp.kt              # @HiltAndroidApp Application
+    navigation/
+      RecipeNavHost.kt        # NavHost + routes
+    ui/
+      theme/                  # Color, Type, Spacing, Theme
+      recipes/                # list / detail / editor screens + ViewModels
+      settings/
+      dev/                    # dev insert/read-back screen
+    core/
+      rational/               # Rational.kt (pure, no Android deps)
+    data/
+      db/                     # RecipeDatabase, DAOs, migrations
+      model/                  # Recipe, Ingredient, Quantity, Unit entities
+      repository/             # RecipeRepository
+  src/test/                   # JUnit — rational math tests
+gradle/libs.versions.toml     # version catalog
 ```
 
 ## Verification
 - App builds and runs on Android emulator
-- Tab navigation works (Recipes, Settings)
+- Bottom-nav navigation works (Recipes, Settings)
 - Rational math tests pass (add, multiply, simplify, display fractions)
-- Dev screen can insert a recipe into SQLite and read it back
-- Theme tokens apply consistently across placeholder screens
+- Dev screen can insert a recipe into Room and read it back
+- Material 3 theme tokens apply consistently across placeholder screens
+
+## Status — Phase 00 built
+Scaffold from Android Studio (Empty Activity, Kotlin DSL), then implemented the foundation.
+
+**Resolved stack:** AGP 9.2.1 · Gradle 9.4.1 · Kotlin 2.2.10 · compileSdk 36.1 / minSdk 24 ·
+Compose BOM 2026.02.01 · Hilt 2.59.2 · Room 2.8.4 · Navigation Compose 2.9.8 (type-safe, `@Serializable`
+routes) · Lifecycle 2.10.0 · KSP 2.2.10-2.0.2. Package `io.github.chwi.recipecalculator`.
+
+**Built:** Hilt app + DI; editorial theme (light/dark palette, Source Serif 4 + Geist via Downloadable
+Fonts, type/spacing tokens exposed through `RecipeTheme`); `core/rational` library + 23 JUnit tests;
+Room (recipes/ingredients/tags, exported schema v1, repository, DI); single-activity NavHost with
+bottom nav + placeholder screens; dev insert/read-back screen.
+
+**Verified green:** `assembleDebug`, `testDebugUnitTest` (23/23), `compileDebugAndroidTestKotlin`.
+**Not yet run here:** the app on an emulator, runtime Downloadable-Fonts fetch, and the instrumented
+`RecipeDaoTest` (compiles; needs a device/emulator to execute).
+
+See `memory/build_environment.md` for CLI build notes and the AGP 9 version constraints.
