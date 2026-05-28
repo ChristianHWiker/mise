@@ -24,12 +24,18 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBackIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -65,7 +71,15 @@ fun RecipeDetailScreen(
             .background(MaterialTheme.colorScheme.background),
     ) {
         LazyColumn(Modifier.fillMaxSize()) {
-            item { DetailTopBar(state.number, state.pinned, onBack, viewModel::togglePin) }
+            item {
+                DetailTopBar(
+                    number = state.number,
+                    pinned = state.pinned,
+                    onBack = onBack,
+                    onTogglePin = viewModel::togglePin,
+                    onEdit = { if (state.recipeId > 0) onEdit(state.recipeId) },
+                )
+            }
             item { HeroPhoto() }
             item { TitleBlock(state.category, state.title, state.metaLine) }
             item {
@@ -109,7 +123,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedSteps(ste
 }
 
 @Composable
-private fun DetailTopBar(number: String, pinned: Boolean, onBack: () -> Unit, onTogglePin: () -> Unit) {
+private fun DetailTopBar(
+    number: String,
+    pinned: Boolean,
+    onBack: () -> Unit,
+    onTogglePin: () -> Unit,
+    onEdit: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -130,13 +150,35 @@ private fun DetailTopBar(number: String, pinned: Boolean, onBack: () -> Unit, on
             style = RecipeTheme.typography.kicker,
             color = RecipeTheme.colors.muted,
         )
-        IconButton(onClick = onTogglePin) {
-            Icon(
-                imageVector = if (pinned) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                contentDescription = if (pinned) "Unsave" else "Save",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onTogglePin) {
+                Icon(
+                    imageVector = if (pinned) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                    contentDescription = if (pinned) "Unsave" else "Save",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            var menuOpen by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(
+                        Icons.Filled.MoreVert,
+                        contentDescription = "More",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Edit recipe") },
+                        onClick = {
+                            menuOpen = false
+                            onEdit()
+                        },
+                    )
+                }
+            }
         }
     }
 }

@@ -4,10 +4,12 @@ This is the **living roadmap** (the *how/when*). `spec.html` remains the product
 The phase numbering here reflects the **actual build order** and is aligned with the git tags, so it
 intentionally diverges from the original 7-phase list in `spec.html` (see "Divergence" note below).
 
-## Current state — `v0.2.0`
-A read-only-but-real recipe app: it opens onto a seeded recipe, you can browse/search/filter the
-library, scale a recipe forward (by yield) and backward (by a limiting ingredient), and flip
-fraction style + unit system in Settings. **You cannot yet create or edit recipes** — that's next.
+## Current state — `v0.3.0`
+A usable single-user recipe app: open onto a seeded recipe, browse/search/filter the library,
+scale forward (yield) and backward (limiting ingredient), and **create / edit / delete recipes**
+with structured ingredient + step editors, drag-to-reorder, density-aware metric conversion,
+free-form tags, and a photo picker. Fraction style + unit system are flipped in Settings.
+**Next:** OCR capture (Phase 3) so recipes can be photographed off printed pages.
 
 - Package `io.github.chwi.recipecalculator` · single-activity · MVVM + Flow + Hilt + Room.
 - Resolved stack: AGP 9.2.1 · Gradle 9.4.1 · Kotlin 2.2.10 · compileSdk 36.1 / minSdk 24 ·
@@ -37,21 +39,27 @@ display settings. (This merged what `spec.html` split across its phases 01-read 
 - **Settings (DataStore)**: fraction style + unit system, applied live across Home & Detail.
 **Done when:** scale a recipe forward/back and see sensible fractions; toggle units and see cups→grams. ✓
 
-### Phase 2 — Recipe authoring (CRUD) · ◀ NEXT
-Make the app usable with your own recipes. The "Add recipe" FAB and the Detail edit affordance
-currently hit a placeholder; this phase replaces it.
-- `RecipeEditorViewModel` + screen for create (`id=null`) and edit (existing id).
-- Header fields: title, category, time, difficulty, servings + yield unit, pin.
-- **Structured ingredient editor**: dynamic rows — quantity (parsed by the existing `Rational.parseOrNull`),
-  unit dropdown (cup/tsp/tbsp/g/ml/ea…), name, optional modifier. Add / remove / reorder.
-- **Steps editor**: dynamic add / remove / reorder text rows.
-- **Persistence gaps to fill**: add `updateRecipe` + `deleteRecipe` to the DAO/repository (today only `addRecipe`).
-- **Validation**: non-empty title, ≥1 ingredient, quantities that parse.
-- **Density lookup** (folded in from spec Phase 03): a curated name→`gramsPerCup` table so user-entered
-  recipes convert to metric, with graceful fallback for unknown ingredients. (Per-recipe unit override: optional, can defer.)
-**Done when:** user can enter a real recipe, save it, find it via search/tags, edit it, delete it — and its metric conversion is sane.
+### Phase 2 — Recipe authoring (CRUD) · ✅ done (`v0.3.0`)
+The editor that turns the read-only app into a usable single-user cookbook. Shipped:
+- `RecipeEditorViewModel` + `RecipeEditorScreen` covering create (`recipeId=null`) and edit.
+- Header fields: title, category, time, difficulty, servings + yield unit, pin, free-form comma-separated tags.
+- **Structured ingredient editor**: drag-to-reorder cards via `sh.calvin.reorderable`, raw-text qty
+  parsed by `Rational.parseOrNull`, unit dropdown (cup/tbsp/tsp/g/kg/ml/ea), name, optional modifier.
+  Density auto-fills from the lookup table on cup/tbsp/tsp.
+- **Steps editor**: drag-to-reorder multi-line text rows.
+- **Persistence**: DAO/repository gained `updateRecipe` (delete-and-reinsert child rows in a
+  `@Transaction`) and `deleteRecipe`. FK cascade handles ingredient + tag cleanup.
+- **Validation**: non-empty title, servings ≥ 1, ≥ 1 ingredient row that parses to a positive
+  quantity with a name; pure-scratch rows are dropped silently on save.
+- **Density lookup** (`core/density/Density.kt`): a starter ~40-entry curated `name → gramsPerCup`
+  table with normalized lookup (lowercase, trim, basic plural stripping) and graceful `null` fallback.
+  Grow as gaps surface; spec target is ~150.
+- **Photo picker**: Android system `PickVisualMedia` → copied into `filesDir/recipe_photos/` and stored
+  as a `file://` URI on the recipe. Phase 3 will revisit when camera/OCR lands.
+- **Detail edit affordance**: previously-orphaned `onEdit` callback now wired via a top-bar overflow
+  → "Edit recipe"; the editor's overflow holds "Delete recipe" with a confirmation dialog.
 
-### Phase 3 — OCR capture (camera) · planned
+### Phase 3 — OCR capture (camera) · ◀ NEXT
 The headline differentiator for the job market. CameraX capture → ML Kit on-device text recognition →
 ingredient-line parser (regex + heuristics) → confirmation screen with editable parsed rows → save as a recipe.
 **Done when:** photograph a printed ingredient list, fix mis-parses inline, save as a new recipe.
@@ -69,13 +77,22 @@ Play Store internal testing track.
 
 ---
 
+## Backlog — deferred ideas
+- **Manual recipe ordering on Home.** Add a `sortIndex` column on `RecipeEntity` (Room migration),
+  switch the DAO query from `ORDER BY createdAt DESC` to `ORDER BY sortIndex`, and add drag-to-reorder
+  on the Home list (same `sh.calvin.reorderable` pattern already used in the editor). Currently the
+  list is chronological; pinned items aren't grouped. Worth doing once the library is large enough
+  that chronological order stops being good enough.
+
+---
+
 ## Divergence from `spec.html`
 The spec lists 7 phases (00 Foundations, 01 Recipe CRUD, 02 Scaling, 03 Unit system, 04 OCR,
 05 Security, 06 Launch). In practice the design handoff pushed the **scaling + unit-conversion
 differentiator (spec 02–03) to ship early** inside our Phase 1, alongside the read UI — while
 **Recipe CRUD (spec 01) was deferred** and is now our Phase 2. The spec's content is unchanged and
 still authoritative for product behavior; this file is the schedule of record. Net remaining work
-vs. spec: CRUD editor, the full density table, OCR, security, launch.
+vs. spec: the full ~150-entry density table, OCR, security, launch.
 
 ## Project structure (as built)
 ```
@@ -83,14 +100,15 @@ app/src/main/java/io/github/chwi/recipecalculator/
   MainActivity.kt · RecipeApp.kt
   navigation/   # type-safe routes, NavHost, bottom nav
   ui/
-    recipes/    # Home + Detail + ReverseScaleSheet (+ ViewModels)   editor lands here in Phase 2
+    recipes/    # Home + Detail + ReverseScaleSheet + Editor (+ ViewModels)
     settings/   # Settings + ViewModel
     dev/        # insert/read-back harness
     theme/      # Color, Type, Spacing, Theme (RecipeTheme tokens)
     common/     # shared composables
   core/
     rational/   # exact-fraction Rational + display formatting (pure, tested)
-    units/       # ingredient-aware conversion + reverse-scale math (pure, tested)
+    units/      # ingredient-aware conversion + reverse-scale math (pure, tested)
+    density/    # curated name→gramsPerCup lookup for the editor (pure, tested)
   data/
     db/         # RecipeDatabase, RecipeDao, Converters
     model/      # Recipe/Ingredient/Tag entities + relations

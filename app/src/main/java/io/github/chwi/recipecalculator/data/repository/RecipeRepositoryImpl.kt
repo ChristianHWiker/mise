@@ -33,4 +33,12 @@ class RecipeRepositoryImpl @Inject constructor(
         ingredients: List<IngredientEntity>,
         tags: List<TagEntity>,
     ): Long = dao.insertRecipeWithIngredients(recipe, ingredients, tags)
+
+    override suspend fun updateRecipe(
+        recipe: RecipeEntity,
+        ingredients: List<IngredientEntity>,
+        tags: List<TagEntity>,
+    ) = dao.updateRecipeWithIngredients(recipe, ingredients, tags)
+
+    override suspend fun deleteRecipe(id: Long) = dao.deleteRecipe(id)
 }

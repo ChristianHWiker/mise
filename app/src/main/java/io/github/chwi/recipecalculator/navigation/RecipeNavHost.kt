@@ -43,7 +43,23 @@ fun RecipeNavHost(
             }
             composable<RecipeEditor> { entry ->
                 val editor = entry.toRoute<RecipeEditor>()
-                RecipeEditorScreen(recipeId = editor.recipeId)
+                RecipeEditorScreen(
+                    recipeId = editor.recipeId,
+                    onSaved = { id ->
+                        if (editor.recipeId == null) {
+                            // New recipe: replace the editor entry so back from Detail returns to the list.
+                            navController.popBackStack()
+                            navController.navigate(RecipeDetail(id))
+                        } else {
+                            // Existing recipe: just pop back to the detail that's already on the stack.
+                            navController.popBackStack()
+                        }
+                    },
+                    onDeleted = {
+                        navController.popBackStack(RecipesList, inclusive = false)
+                    },
+                    onCancel = { navController.popBackStack() },
+                )
             }
             composable<Capture> { CaptureScreen() }
         }

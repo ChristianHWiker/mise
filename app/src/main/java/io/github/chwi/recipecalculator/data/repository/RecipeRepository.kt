@@ -25,4 +25,13 @@ interface RecipeRepository {
         ingredients: List<IngredientEntity>,
         tags: List<TagEntity> = emptyList(),
     ): Long
+
+    /** Replace an existing recipe's header, ingredients and tags atomically. */
+    suspend fun updateRecipe(
+        recipe: RecipeEntity,
+        ingredients: List<IngredientEntity>,
+        tags: List<TagEntity> = emptyList(),
+    )
+
+    suspend fun deleteRecipe(id: Long)
 }
