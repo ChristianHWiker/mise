@@ -11,19 +11,32 @@ import kotlinx.serialization.Serializable
 @Serializable
 data object RecipesGraph
 
+/** Nested graph hosting the OCR capture flow (Capture → ConfirmCapture). */
+@Serializable
+data object CaptureGraph
+
 @Serializable
 data object RecipesList
 
 @Serializable
 data class RecipeDetail(val recipeId: Long)
 
-/** Editor for a new recipe ([recipeId] null) or an existing one. */
+/**
+ * Editor for a new recipe ([recipeId] null) or an existing one.
+ *
+ * When [fromCapture] is `true`, the editor consumes any pending [io.github.chwi.recipecalculator
+ * .ui.capture.CaptureHandoff] payload at startup and seeds the draft from it.
+ */
 @Serializable
-data class RecipeEditor(val recipeId: Long? = null)
+data class RecipeEditor(val recipeId: Long? = null, val fromCapture: Boolean = false)
 
-/** Camera/OCR capture flow — stubbed in Phase 00, built out in the capture phase. */
+/** OCR capture flow — the live preview / picker entry. */
 @Serializable
 data object Capture
+
+/** Confirmation step that follows a successful OCR pass; reads from the capture-graph VM. */
+@Serializable
+data object ConfirmCapture
 
 @Serializable
 data object Settings

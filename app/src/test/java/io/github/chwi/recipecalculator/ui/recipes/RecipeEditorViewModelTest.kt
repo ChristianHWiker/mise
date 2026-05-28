@@ -7,6 +7,7 @@ import io.github.chwi.recipecalculator.data.model.RecipeEntity
 import io.github.chwi.recipecalculator.data.model.RecipeWithIngredients
 import io.github.chwi.recipecalculator.data.model.TagEntity
 import io.github.chwi.recipecalculator.data.repository.RecipeRepository
+import io.github.chwi.recipecalculator.ui.capture.CaptureHandoff
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -38,7 +39,7 @@ class RecipeEditorViewModelTest {
     }
 
     @Test fun `new recipe with empty title fails validation`() = runTest {
-        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo())
+        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo(), CaptureHandoff())
         vm.save()
         val errors = vm.state.value.errors
         assertTrue("expected title error", errors.title)
@@ -46,7 +47,7 @@ class RecipeEditorViewModelTest {
     }
 
     @Test fun `new recipe with unparseable quantity flags the row`() = runTest {
-        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo())
+        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo(), CaptureHandoff())
         vm.onTitleChange("Test")
         vm.onServingsChange("4")
         val key = vm.state.value.ingredients.first().key
@@ -57,7 +58,7 @@ class RecipeEditorViewModelTest {
 
     @Test fun `save creates a new recipe with parsed entities`() = runTest {
         val repo = FakeRepo()
-        val vm = RecipeEditorViewModel(savedState(recipeId = null), repo)
+        val vm = RecipeEditorViewModel(savedState(recipeId = null), repo, CaptureHandoff())
         vm.onTitleChange("Cookies")
         vm.onCategoryChange("Cookies")
         vm.onTimeChange("30")
@@ -91,7 +92,7 @@ class RecipeEditorViewModelTest {
     @Test fun `loading existing recipe populates the draft`() = runTest {
         val existing = sampleRecipe(id = 7L)
         val repo = FakeRepo(existing = existing)
-        val vm = RecipeEditorViewModel(savedState(recipeId = 7L), repo)
+        val vm = RecipeEditorViewModel(savedState(recipeId = 7L), repo, CaptureHandoff())
         // give the init load a chance to run on the unconfined dispatcher
         val state = vm.state.value
         assertEquals("Cookies", state.title)
@@ -106,7 +107,7 @@ class RecipeEditorViewModelTest {
             copy(recipe = recipe.copy(createdAt = 1_000L))
         }
         val repo = FakeRepo(existing = existing)
-        val vm = RecipeEditorViewModel(savedState(recipeId = 7L), repo)
+        val vm = RecipeEditorViewModel(savedState(recipeId = 7L), repo, CaptureHandoff())
         vm.onTitleChange("Better cookies")
         vm.results.test {
             vm.save()
@@ -118,7 +119,7 @@ class RecipeEditorViewModelTest {
 
     @Test fun `delete emits Deleted and calls repository`() = runTest {
         val repo = FakeRepo(existing = sampleRecipe(id = 7L))
-        val vm = RecipeEditorViewModel(savedState(recipeId = 7L), repo)
+        val vm = RecipeEditorViewModel(savedState(recipeId = 7L), repo, CaptureHandoff())
         vm.results.test {
             vm.delete()
             assertEquals(SaveResult.Deleted, awaitItem())
@@ -127,7 +128,7 @@ class RecipeEditorViewModelTest {
     }
 
     @Test fun `move ingredient reorders the list`() = runTest {
-        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo())
+        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo(), CaptureHandoff())
         vm.addIngredient()
         vm.addIngredient()
         val before = vm.state.value.ingredients.map { it.key }
@@ -137,11 +138,43 @@ class RecipeEditorViewModelTest {
     }
 
     @Test fun `remove ingredient with single row keeps one fresh row`() = runTest {
-        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo())
+        val vm = RecipeEditorViewModel(savedState(recipeId = null), FakeRepo(), CaptureHandoff())
         val key = vm.state.value.ingredients.first().key
         vm.removeIngredient(key)
         assertEquals(1, vm.state.value.ingredients.size)
         assertTrue(vm.state.value.ingredients.first().key != key)
+    }
+
+    @Test fun `fromCapture flag seeds ingredients from CaptureHandoff and clears it`() = runTest {
+        val handoff = CaptureHandoff().apply {
+            stage(
+                listOf(
+                    io.github.chwi.recipecalculator.core.parser.ParsedLine(
+                        qty = io.github.chwi.recipecalculator.core.rational.Rational.of(3, 2),
+                        unit = "cup",
+                        name = "flour",
+                        modifier = "sifted",
+                        confidence = 1f,
+                        rawText = "1 1/2 cups flour, sifted",
+                    ),
+                    io.github.chwi.recipecalculator.core.parser.ParsedLine(
+                        qty = null, unit = null, name = "Salt to taste",
+                        confidence = 0.5f, rawText = "Salt to taste",
+                    ),
+                ),
+            )
+        }
+        val saved = SavedStateHandle(mapOf("fromCapture" to true))
+        val vm = RecipeEditorViewModel(saved, FakeRepo(), handoff)
+        val rows = vm.state.value.ingredients
+        assertEquals(2, rows.size)
+        assertEquals("flour", rows[0].name)
+        assertEquals("cup", rows[0].unit)
+        assertEquals("1 1/2", rows[0].qtyText)
+        // Row 2 had no qty — name falls back to the raw text so the user can clean it up.
+        assertEquals("Salt to taste", rows[1].name)
+        // Handoff should be drained so a subsequent blank-FAB open isn't polluted.
+        assertNull(handoff.consume())
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────

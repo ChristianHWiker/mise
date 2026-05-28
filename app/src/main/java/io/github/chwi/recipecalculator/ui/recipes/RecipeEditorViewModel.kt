@@ -5,11 +5,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.chwi.recipecalculator.core.density.lookupGramsPerCup
+import io.github.chwi.recipecalculator.core.parser.ParsedLine
 import io.github.chwi.recipecalculator.core.rational.Rational
 import io.github.chwi.recipecalculator.data.model.IngredientEntity
 import io.github.chwi.recipecalculator.data.model.RecipeEntity
 import io.github.chwi.recipecalculator.data.model.TagEntity
 import io.github.chwi.recipecalculator.data.repository.RecipeRepository
+import io.github.chwi.recipecalculator.ui.capture.CaptureHandoff
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -92,12 +94,14 @@ private val VOLUME_UNITS_FOR_DENSITY = setOf("cup", "tbsp", "tsp")
 class RecipeEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: RecipeRepository,
+    private val captureHandoff: CaptureHandoff,
 ) : ViewModel() {
 
     // Navigation Compose populates SavedStateHandle from the type-safe RecipeEditor route under
     // the property name. Reading directly avoids the toRoute<>() serializer path, which needs the
     // navigation runtime registered and would have to be stubbed in unit tests.
     private val recipeId: Long? = savedStateHandle.get<Long>("recipeId")
+    private val fromCapture: Boolean = savedStateHandle.get<Boolean>("fromCapture") ?: false
 
     private val _state = MutableStateFlow(
         EditorUiState(
@@ -113,7 +117,30 @@ class RecipeEditorViewModel @Inject constructor(
     private var nextKey: Long = 2L
 
     init {
-        if (recipeId != null) viewModelScope.launch { loadExisting(recipeId) }
+        when {
+            recipeId != null -> viewModelScope.launch { loadExisting(recipeId) }
+            fromCapture -> seedFromCapture()
+        }
+    }
+
+    /**
+     * Pull a pending OCR payload out of [CaptureHandoff] and project it onto the editor's draft
+     * ingredients. Rows without a parseable qty drop in as scratch with the raw text as the name,
+     * so the user can fix them inline rather than losing them.
+     */
+    private fun seedFromCapture() {
+        val rows = captureHandoff.consume()?.takeIf { it.isNotEmpty() } ?: return
+        val drafts = rows.map { row ->
+            IngredientDraft(
+                key = freshKey(),
+                qtyText = row.qty?.toUserText().orEmpty(),
+                unit = row.unit ?: "cup",
+                name = row.name.ifBlank { row.rawText },
+                modifier = row.modifier.orEmpty(),
+                gramsPerCup = lookupGramsPerCup(row.name).takeIf { row.unit in VOLUME_UNITS_FOR_DENSITY },
+            )
+        }
+        _state.update { it.copy(ingredients = drafts) }
     }
 
     private suspend fun loadExisting(id: Long) {

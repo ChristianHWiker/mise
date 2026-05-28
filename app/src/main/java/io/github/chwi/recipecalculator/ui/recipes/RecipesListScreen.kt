@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuOpen
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -60,6 +61,7 @@ private val PagePadding = 22.dp
 fun RecipesListScreen(
     onRecipeClick: (Long) -> Unit,
     onAddRecipe: () -> Unit,
+    onCaptureRecipe: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -104,16 +106,40 @@ fun RecipesListScreen(
             item { Spacer(Modifier.height(92.dp)) }
         }
 
-        ExtendedFloatingActionButton(
-            onClick = onAddRecipe,
-            icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-            text = { Text("Add recipe", style = RecipeTheme.typography.body) },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color.White,
-            shape = RoundedCornerShape(percent = 50),
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(RecipeTheme.spacing.xxl),
+            horizontalArrangement = Arrangement.spacedBy(RecipeTheme.spacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CaptureFab(onClick = onCaptureRecipe)
+            ExtendedFloatingActionButton(
+                onClick = onAddRecipe,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text("Add recipe", style = RecipeTheme.typography.body) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.White,
+                shape = RoundedCornerShape(percent = 50),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CaptureFab(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(percent = 50))
+            .border(1.dp, RecipeTheme.colors.rule, RoundedCornerShape(percent = 50))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.CameraAlt,
+            contentDescription = "Scan recipe",
+            tint = MaterialTheme.colorScheme.primary,
         )
     }
 }
