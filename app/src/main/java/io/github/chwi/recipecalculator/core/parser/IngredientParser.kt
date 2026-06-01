@@ -54,8 +54,21 @@ private val LEADING_ENUMERATION = Regex("""^\d+\s*[.)]\s+""")
 /** Mixed number or simple fraction at line start, e.g. "1 1/2 ", "3/4 ", "2 ". */
 private val QTY_REGEX = Regex("""^(\d+\s+\d+\s*/\s*\d+|\d+\s*/\s*\d+|\d+(?:\.\d+)?)\s+""")
 
-/** A trailing parenthetical, e.g. "(packed)" — folded into the modifier. */
-private val TRAILING_PAREN = Regex("""\s*\(([^)]+)\)\s*$""")
+/**
+ * A dual "metric/imperial" quantity printed glued together at line start, as recipe sites do:
+ * "100g/3.5 oz", "175g/6 oz", "400g/14 oz". We keep the metric measure (`$1 $2`) and discard
+ * the imperial alternative. The imperial unit token is matched loosely (`[a-zA-Z0-9]{1,3}`)
+ * because OCR routinely mangles "oz" into "0z"/"0Z". The metric number tolerates an O/o in
+ * place of a zero ("10Og" → "100g") — another stock OCR confusion — cleaned up in the replacement.
+ */
+private val DUAL_METRIC_IMPERIAL =
+    Regex("""^([\dOo]+(?:[.,]\d+)?)\s*([a-zA-Z]+)\s*/\s*\d+(?:[.,]\d+)?\s*[a-zA-Z0-9]{1,3}\b""")
+
+/** A leading number glued straight onto a unit or word — "100g", "1garlic", "1/2cup". */
+private val NUMBER_GLUED_TO_WORD = Regex("""^(\d+\s*/\s*\d+|\d+(?:[.,]\d+)?)([a-zA-Z])""")
+
+/** Any parenthetical, e.g. "(packed)" or a mid-name "(pancetta or block bacon)" — folded into the modifier. */
+private val PARENTHETICAL = Regex("""\(([^)]*)\)""")
 
 /**
  * Parse a single OCR'd ingredient line into a best-effort structured row.
@@ -66,7 +79,7 @@ private val TRAILING_PAREN = Regex("""\s*\(([^)]+)\)\s*$""")
  *  3. Match a leading mixed/fraction/decimal quantity and feed it to [Rational.parseOrNull].
  *  4. Match the next token against the unit alias table.
  *  5. Split the remainder on the first comma (or " — "): left = name, right = modifier.
- *  6. Also fold a trailing parenthetical into the modifier.
+ *  6. Also fold any parenthetical (trailing or mid-name) into the modifier.
  *
  * Anything that doesn't match falls through with a low confidence; [rawText] is preserved
  * so the user can edit from the original on the confirmation screen.
@@ -75,23 +88,30 @@ fun parseIngredientLine(rawInput: String): ParsedLine {
     val rawText = rawInput.trim()
     if (rawText.isEmpty()) return ParsedLine(rawText = rawText)
 
-    var working = rawText
-        .replace(LEADING_NOISE, "")
-        .let { stripped ->
-            var s = stripped
-            UNICODE_FRACTIONS.forEach { (glyph, ascii) -> s = s.replace(glyph, ascii) }
-            s.trim().replace(Regex("""\s+"""), " ")
+    var working = rawText.replace(LEADING_NOISE, "")
+    UNICODE_FRACTIONS.forEach { (glyph, ascii) -> working = working.replace(glyph, ascii) }
+    working = working
+        // Collapse a glued metric/imperial pair to its metric half (fixing an O-for-0 in the
+        // number), then split any number that sits flush against the following letter — both
+        // happen before whitespace normalization.
+        .replace(DUAL_METRIC_IMPERIAL) { m ->
+            "${m.groupValues[1].replace('O', '0').replace('o', '0')} ${m.groupValues[2]} "
         }
+        .replace(NUMBER_GLUED_TO_WORD, "$1 $2")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
 
     // "1. flour" → "flour" (enumeration), but leave bare "1" alone — it's a qty.
     working = working.replace(LEADING_ENUMERATION, "")
 
-    // Trailing parenthetical → modifier hint, removed from name.
-    var parenModifier: String? = null
-    TRAILING_PAREN.find(working)?.let { m ->
-        parenModifier = m.groupValues[1].trim()
-        working = working.removeRange(m.range).trim()
-    }
+    // Parentheticals anywhere → modifier hints, removed from the name. Recipe sites park
+    // clarifications mid-name ("guanciale (pancetta or block bacon)"), not only at the end.
+    val parenModifiers = mutableListOf<String>()
+    working = PARENTHETICAL.replace(working) { m ->
+        m.groupValues[1].trim().takeIf { it.isNotEmpty() }?.let { parenModifiers += it }
+        " "
+    }.replace(Regex("""\s+"""), " ").trim()
+    val parenModifier = parenModifiers.joinToString(", ").takeIf { it.isNotEmpty() }
     // Drop trailing punctuation like "." or ";"
     working = working.trimEnd('.', ';', ',')
 
@@ -145,13 +165,49 @@ private fun splitOnceOnComma(input: String): Pair<String, String?> {
     else input.substring(0, splitIdx).trim() to input.substring(splitIdx + 1).trim().trimStart('—', '–', '-', ' ')
 }
 
-/** Parse a multi-line OCR blob into one [ParsedLine] per non-blank line. */
+/** Parse a multi-line OCR blob into one [ParsedLine] per logical ingredient line. */
 fun parseIngredientBlock(text: String): List<ParsedLine> =
-    text.lineSequence()
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .map(::parseIngredientLine)
-        .toList()
+    mergeWrappedLines(
+        text.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toList(),
+    ).map(::parseIngredientLine)
+
+/**
+ * Reassemble ingredient lines that ML Kit split because they wrapped on the page.
+ *
+ * A long ingredient (e.g. "100g/3.5 oz parmigiano reggiano … (or pecorino romano, sub /
+ * parmesan, Note 3)") is emitted as two physical lines, and the trailing fragment
+ * ("parmesan, Note 3)") has no quantity of its own — so it would be parsed as a junk row and
+ * the real ingredient truncated. We fold a line into its predecessor only when it reads as a
+ * wrapped parenthetical tail — it opens with a parenthesis, or it carries a closing ')' with no
+ * matching '(' of its own. We deliberately do *not* merge on a bare lowercase start, since
+ * unitless ingredients legitimately begin that way ("q.s. black pepper", "a pinch of salt").
+ */
+fun mergeWrappedLines(lines: List<String>): List<String> {
+    val merged = mutableListOf<String>()
+    for (raw in lines) {
+        val line = raw.trim()
+        if (line.isEmpty()) continue
+        if (merged.isNotEmpty() && isContinuation(line)) {
+            merged[merged.lastIndex] = "${merged.last()} $line"
+        } else {
+            merged += line
+        }
+    }
+    return merged
+}
+
+private fun isContinuation(line: String): Boolean {
+    val first = line.first()
+    if (first == '(' || first == ')') return true
+    // A ')' appearing before any '(' is a dangling close — the tail of a parenthetical that
+    // opened on the previous line ("… sub" / "parmesan, Note 3)").
+    val open = line.indexOf('(')
+    val close = line.indexOf(')')
+    return close >= 0 && (open < 0 || close < open)
+}
 
 /**
  * Whittle a raw parser pass over an OCR'd page down to lines that actually look like ingredients.
@@ -162,7 +218,10 @@ fun parseIngredientBlock(text: String): List<ParsedLine> =
  * rows on the confirmation screen drowns the actual ingredients. We filter to rows that show
  * positive ingredient signal:
  *  - they have a recognized quantity, **or**
- *  - they explicitly opt in via "to taste" / "q.s." / "a pinch"-style phrasing.
+ *  - they explicitly opt in via "to taste" / "q.s." / "a pinch"-style phrasing,
+ *
+ * while explicitly rejecting numbered instruction steps, whose step number would otherwise read
+ * as a quantity (see [looksLikeInstructionStep]).
  *
  * For surviving rows we also trim the name at the first sentence-boundary — web recipes routinely
  * append a descriptive paragraph after each ingredient on the same OCR line ("400 gr pasta. Best
@@ -175,7 +234,26 @@ fun refineForIngredients(rows: List<ParsedLine>): List<ParsedLine> =
 
 private val UNITLESS_KEYWORDS = listOf("to taste", "q.s.", "qb", "a pinch", "a dash", "a few")
 
+/**
+ * A numbered instruction step masquerading as a quantified ingredient: a leading step number
+ * ("1", "(2", "3.") immediately followed by a Capitalized lead-in word, e.g. "1 Guanciale Cut
+ * into…", "(2 Carbonara sauce Place…", "3 Cook pasta Bring…". The step number parses as a
+ * quantity, so without this guard these survive the qty filter. Ingredient lines instead read
+ * "2 large eggs" / "100 g spaghetti" — lowercase (or a unit) after the number. The number may be
+ * glued straight onto the word ("1Guanciale", "3Cook"), so no whitespace is required between them.
+ */
+private val NUMBERED_STEP_LEAD = Regex("""^\(?\d{1,2}[.):]?\s*[A-Z][a-z]""")
+
+/** A "lowercase-word Capitalized-word" break — the signature of a sentence, not an ingredient name. */
+private val SENTENCE_CASE_BREAK = Regex("""[a-z]\s+[A-Z]""")
+
+private fun looksLikeInstructionStep(raw: String): Boolean =
+    NUMBERED_STEP_LEAD.containsMatchIn(raw) &&
+        SENTENCE_CASE_BREAK.containsMatchIn(raw) &&
+        raw.split(Regex("""\s+""")).size > 5
+
 private fun looksLikeIngredient(row: ParsedLine): Boolean {
+    if (looksLikeInstructionStep(row.rawText)) return false
     if (row.qty != null) return true
     val haystack = (row.name + " " + (row.modifier ?: "")).lowercase()
     return UNITLESS_KEYWORDS.any { it in haystack }

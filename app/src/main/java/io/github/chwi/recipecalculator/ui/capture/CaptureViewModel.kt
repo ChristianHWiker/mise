@@ -11,11 +11,13 @@ import io.github.chwi.recipecalculator.core.parser.ParsedLine
 import io.github.chwi.recipecalculator.core.parser.parseIngredientBlock
 import io.github.chwi.recipecalculator.core.parser.refineForIngredients
 import io.github.chwi.recipecalculator.data.ocr.OcrService
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -25,6 +27,8 @@ sealed interface CaptureStage {
     data object Idle : CaptureStage
     /** Live CameraX preview waiting for a shutter tap. */
     data object LivePreview : CaptureStage
+    /** A photo was taken/picked; the user is framing a crop before OCR runs. */
+    data class Cropping(val sourceUri: String) : CaptureStage
     /** OCR is running on the captured/selected image. */
     data object Recognizing : CaptureStage
     /** OCR + parse finished; rows ready for confirmation. */
@@ -58,35 +62,52 @@ class CaptureViewModel @Inject constructor(
 
     fun cancelCamera() = _state.update { it.copy(stage = CaptureStage.Idle) }
 
-    /** Called by the screen once CameraX writes a JPEG to disk, or the picker hands back a URI. */
-    fun onImageReady(uri: Uri) {
-        _state.update { it.copy(stage = CaptureStage.Recognizing, sourceUri = uri.toString()) }
+    /**
+     * Called by the screen once CameraX writes a JPEG to disk, or the picker hands back a URI.
+     * Moves to the crop step rather than running OCR straight away — cropping to just the ingredient
+     * list keeps page chrome and instruction steps out of the recognizer.
+     */
+    fun onImageReady(uri: Uri) =
+        _state.update { it.copy(stage = CaptureStage.Cropping(uri.toString()), sourceUri = uri.toString()) }
+
+    /**
+     * The user accepted a crop [region] (or "use full image", which arrives as [CropRegion.Full]).
+     * Crop off the main thread, then run OCR on the result.
+     */
+    fun onCropConfirmed(region: CropRegion) {
+        val source = _state.value.sourceUri?.let(Uri::parse) ?: return
+        _state.update { it.copy(stage = CaptureStage.Recognizing) }
         viewModelScope.launch {
-            try {
-                val result = ocr.recognizeText(uri)
-                val rawParsed = parseIngredientBlock(result.lines.joinToString("\n"))
-                val parsed = refineForIngredients(rawParsed)
-                Log.d(TAG, "── parser raw (${rawParsed.size} rows) → refined (${parsed.size} rows) ──")
-                parsed.forEachIndexed { idx, p ->
-                    Log.d(
-                        TAG,
-                        "  [$idx] qty=${p.qty} unit=${p.unit} name='${p.name}' " +
-                            "mod='${p.modifier ?: ""}' conf=${p.confidence} raw='${p.rawText}'",
-                    )
-                }
-                _state.update {
-                    it.copy(
-                        stage = if (parsed.isEmpty()) {
-                            CaptureStage.Error("No text recognized — try again with a clearer photo.")
-                        } else {
-                            CaptureStage.Confirm(parsed)
-                        },
-                    )
-                }
-            } catch (t: Throwable) {
-                _state.update {
-                    it.copy(stage = CaptureStage.Error(t.message ?: "Could not read the image."))
-                }
+            val target = withContext(Dispatchers.Default) { cropToOcrFile(context, source, region) }
+            recognize(target)
+        }
+    }
+
+    private suspend fun recognize(uri: Uri) {
+        try {
+            val result = ocr.recognizeText(uri)
+            val rawParsed = parseIngredientBlock(result.lines.joinToString("\n"))
+            val parsed = refineForIngredients(rawParsed)
+            Log.d(TAG, "── parser raw (${rawParsed.size} rows) → refined (${parsed.size} rows) ──")
+            parsed.forEachIndexed { idx, p ->
+                Log.d(
+                    TAG,
+                    "  [$idx] qty=${p.qty} unit=${p.unit} name='${p.name}' " +
+                        "mod='${p.modifier ?: ""}' conf=${p.confidence} raw='${p.rawText}'",
+                )
+            }
+            _state.update {
+                it.copy(
+                    stage = if (parsed.isEmpty()) {
+                        CaptureStage.Error("No text recognized — try again with a clearer photo.")
+                    } else {
+                        CaptureStage.Confirm(parsed)
+                    },
+                )
+            }
+        } catch (t: Throwable) {
+            _state.update {
+                it.copy(stage = CaptureStage.Error(t.message ?: "Could not read the image."))
             }
         }
     }

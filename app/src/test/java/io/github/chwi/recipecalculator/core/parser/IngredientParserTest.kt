@@ -258,6 +258,140 @@ class IngredientParserTest {
         assertEquals("sifted", refined.modifier)
     }
 
+    // ── dual metric/imperial + glued quantities ──────────────────────────────
+
+    @Test
+    fun parses_glued_dual_metric_imperial_keeps_metric() {
+        // "100g/3.5 oz parmigiano reggiano" — number glued to unit, plus an imperial alternative.
+        val r = parseIngredientLine("100g/3.5 oz parmigiano reggiano, finely shredded")
+        assertEquals(Rational.of(100, 1), r.qty)
+        assertEquals("g", r.unit)
+        assertEquals("parmigiano reggiano", r.name)
+        assertEquals("finely shredded", r.modifier)
+        assertEquals(1.0f, r.confidence)
+    }
+
+    @Test
+    fun parses_glued_dual_with_ocr_mangled_oz() {
+        // OCR routinely reads "oz" as "0z"/"0Z"; the imperial half must still be discarded.
+        val r = parseIngredientLine("400g/14 0Z spaghetti")
+        assertEquals(Rational.of(400, 1), r.qty)
+        assertEquals("g", r.unit)
+        assertEquals("spaghetti", r.name)
+    }
+
+    @Test
+    fun parses_dual_with_o_for_zero_in_number() {
+        // OCR read "100g" as "10Og" (capital O for the second zero) — must clean to 100.
+        val r = parseIngredientLine("10Og/3.5 0z parmigiano reggiano, finely shredded")
+        assertEquals(Rational.of(100, 1), r.qty)
+        assertEquals("g", r.unit)
+        assertEquals("parmigiano reggiano", r.name)
+    }
+
+    @Test
+    fun parses_number_glued_to_word() {
+        // "1garlic clove" — no space between quantity and the ingredient word.
+        val r = parseIngredientLine("1garlic clove, finely minced (optional, Note 4)")
+        assertEquals(Rational.of(1, 1), r.qty)
+        assertNull(r.unit)
+        assertEquals("garlic clove", r.name)
+        assertTrue(r.modifier!!.contains("finely minced"))
+    }
+
+    // ── mergeWrappedLines ─────────────────────────────────────────────────────
+
+    @Test
+    fun merges_wrapped_continuation_fragment() {
+        val merged = mergeWrappedLines(
+            listOf(
+                "100g/3.5 0z parmigiano reggiano, finely shredded (or pecorino romano, sub",
+                "parmesan, Note 3)",
+            ),
+        )
+        assertEquals(1, merged.size)
+        assertTrue(merged.single().endsWith("Note 3)"))
+    }
+
+    @Test
+    fun does_not_merge_a_new_quantified_item() {
+        val merged = mergeWrappedLines(listOf("100g spaghetti", "400g flour"))
+        assertEquals(2, merged.size)
+    }
+
+    @Test
+    fun mid_name_parenthetical_moves_to_modifier_not_truncated() {
+        // Regression: "guanciale (pancetta or block bacon)" must not be cut at the "or" inside
+        // the parens. The clarification belongs in the modifier; the name stays clean.
+        val rows = parseIngredientBlock(
+            "175g/6 oz guanciale (pancetta or block bacon), weight after skin removed (Note 1)",
+        )
+        val r = refineForIngredients(rows).single()
+        assertEquals("guanciale", r.name)
+        assertEquals(Rational.of(175, 1), r.qty)
+        assertEquals("g", r.unit)
+        assertTrue("modifier was '${r.modifier}'", r.modifier!!.contains("pancetta or block bacon"))
+    }
+
+    // ── numbered instruction steps are not ingredients ────────────────────────
+
+    @Test
+    fun refine_drops_numbered_instruction_steps() {
+        val rows = parseIngredientBlock(
+            """
+            1 Guanciale Cut into 0.5cm/1/5 thick slices then into batons.
+            3 Cook pasta Bring 4 litres of water to the boil with the salt Add
+            """.trimIndent(),
+        )
+        assertEquals(0, refineForIngredients(rows).size)
+    }
+
+    @Test
+    fun refine_drops_step_number_glued_to_word() {
+        // OCR frequently glues the step number to the lead-in word: "1Guanciale", "6Cook".
+        val rows = parseIngredientBlock(
+            """
+            1Guanciale Cut into 0.5cm thick slices then into batons.
+            3Carbonara sauce Place eggs and yolks in a large bowl Whisk to combine
+            6Cook guanciale While the pasta is cooking place guanciale in a pan
+            """.trimIndent(),
+        )
+        assertEquals(0, refineForIngredients(rows).size)
+    }
+
+    @Test
+    fun refine_keeps_short_capitalized_ingredient() {
+        // Guard against over-eager step filtering: a short, capitalized ingredient survives.
+        val rows = parseIngredientBlock("2 Bay leaves")
+        val refined = refineForIngredients(rows).single()
+        assertTrue(refined.name.contains("Bay"))
+    }
+
+    @Test
+    fun carbonara_recovers_all_real_ingredients() {
+        // Verbatim ML Kit dump (block lines flattened) from a real Pixel capture of
+        // recipetineats.com/carbonara — the four "Ng/X oz" ingredients used to vanish.
+        val ocr = listOf(
+            "2 large eggs (Note 2)",
+            "2 egg yolks (Note 2)",
+            "175g/6 oz guanciale (pancetta or block bacon), weight after skin removed",
+            "(Note 1)",
+            "025 tsp black pepper",
+            "100g/3.5 0z parmigiano reggiano, finely shredded (or pecorino romano, sub",
+            "parmesan, Note 3)",
+            "400g/14 0Z spaghetti",
+            "1 tbsp cooking/kosher salt (for cooking pasta)",
+            "125 ml pasta cooking water",
+            "1garlic clove, finely minced (optional, Note 4)",
+        )
+        val refined = refineForIngredients(parseIngredientBlock(ocr.joinToString("\n")))
+        val names = refined.joinToString(" | ") { it.name.lowercase() }
+        assertTrue("guanciale missing in: $names", names.contains("guanciale"))
+        assertTrue("parmigiano missing in: $names", names.contains("parmigiano"))
+        assertTrue("spaghetti missing in: $names", names.contains("spaghetti"))
+        assertTrue("garlic missing in: $names", names.contains("garlic"))
+    }
+
     @Test
     fun refine_drops_empty_and_pure_noise() {
         val rows = parseIngredientBlock(

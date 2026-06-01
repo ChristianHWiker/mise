@@ -7,23 +7,30 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,24 +49,40 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.chwi.recipecalculator.ui.theme.RecipeTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import kotlin.math.min
+import kotlin.math.roundToInt
 
 private val PagePadding = 22.dp
 
@@ -107,6 +130,12 @@ fun CaptureScreen(
                 onCancel = viewModel::cancelCamera,
                 onCaptured = viewModel::onImageReady,
                 allocateFile = viewModel::newCaptureFile,
+            )
+
+            is CaptureStage.Cropping -> CropStage(
+                sourceUri = Uri.parse(stage.sourceUri),
+                onConfirm = viewModel::onCropConfirmed,
+                onCancel = viewModel::reset,
             )
 
             CaptureStage.Recognizing -> RecognizingStage()
@@ -241,6 +270,8 @@ private fun CameraStage(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val imageCapture = remember { ImageCapture.Builder().build() }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    var zoomRatio by remember { mutableFloatStateOf(1f) }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         AndroidView(
@@ -254,12 +285,13 @@ private fun CameraStage(
                     }
                     try {
                         provider.unbindAll()
-                        provider.bindToLifecycle(
+                        camera = provider.bindToLifecycle(
                             lifecycleOwner,
                             CameraSelector.DEFAULT_BACK_CAMERA,
                             preview,
                             imageCapture,
                         )
+                        zoomRatio = camera?.cameraInfo?.zoomState?.value?.zoomRatio ?: 1f
                     } catch (_: Throwable) {
                         // The state machine falls back to error if capture is attempted with no
                         // viable camera binding (e.g. emulator without a virtual camera).
@@ -267,8 +299,37 @@ private fun CameraStage(
                 }, ContextCompat.getMainExecutor(ctx))
                 previewView
             },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                // Pinch to zoom: scale the live optical/digital zoom (and therefore the captured
+                // photo) so the user can fill the frame with just the ingredient list.
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, _, zoomChange, _ ->
+                        val cam = camera ?: return@detectTransformGestures
+                        val zoomState = cam.cameraInfo.zoomState.value ?: return@detectTransformGestures
+                        val next = (zoomState.zoomRatio * zoomChange)
+                            .coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
+                        cam.cameraControl.setZoomRatio(next)
+                        zoomRatio = next
+                    }
+                },
         )
+
+        if (zoomRatio > 1.04f) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 96.dp)
+                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(percent = 50))
+                    .padding(horizontal = RecipeTheme.spacing.lg, vertical = RecipeTheme.spacing.xs),
+            ) {
+                Text(
+                    text = String.format(java.util.Locale.US, "%.1f×", zoomRatio),
+                    style = RecipeTheme.typography.caption,
+                    color = Color.White,
+                )
+            }
+        }
 
         Row(
             modifier = Modifier
@@ -281,7 +342,7 @@ private fun CameraStage(
                 Icon(Icons.Filled.Close, contentDescription = "Cancel", tint = Color.White)
             }
             Text(
-                text = "FRAME THE INGREDIENTS",
+                text = "PINCH TO ZOOM · FRAME THE LIST",
                 style = RecipeTheme.typography.kicker,
                 color = Color.White.copy(alpha = 0.85f),
             )
@@ -348,6 +409,229 @@ private fun CameraPermissionRationale(onRequest: () -> Unit, onCancel: () -> Uni
             PrimaryButton(label = "Allow", onClick = onRequest)
             SecondaryButton(label = "Cancel", onClick = onCancel)
         }
+    }
+}
+
+// ── Crop: trim to the ingredient list before OCR ─────────────────────────────
+
+@Composable
+private fun CropStage(
+    sourceUri: Uri,
+    onConfirm: (CropRegion) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val context = LocalContext.current
+    // Downsampled, EXIF-corrected bitmap for display only; the actual crop re-decodes at full res.
+    val bitmap by produceState<ImageBitmap?>(initialValue = null, sourceUri) {
+        value = withContext(Dispatchers.Default) {
+            decodeOrientedBitmap(context, sourceUri, maxEdge = 1600)?.asImageBitmap()
+        }
+    }
+    var region by remember { mutableStateOf(CropRegion(0.06f, 0.06f, 0.94f, 0.94f)) }
+
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        when (val image = bitmap) {
+            null -> CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.align(Alignment.Center),
+            )
+
+            else -> CropCanvas(
+                image = image,
+                onRegionChange = { region = it },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = RecipeTheme.spacing.xl, vertical = RecipeTheme.spacing.xxl),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onCancel) {
+                Icon(Icons.Filled.Close, contentDescription = "Discard photo", tint = Color.White)
+            }
+            Text(
+                text = "DRAG TO CROP",
+                style = RecipeTheme.typography.kicker,
+                color = Color.White.copy(alpha = 0.85f),
+            )
+            Spacer(Modifier.size(48.dp))
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = RecipeTheme.spacing.xl, vertical = RecipeTheme.spacing.xxxl),
+            horizontalArrangement = Arrangement.spacedBy(RecipeTheme.spacing.lg, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SecondaryButtonOnDark(label = "Use full image", onClick = { onConfirm(CropRegion.Full) })
+            PrimaryButton(label = "Scan crop", onClick = { onConfirm(region) })
+        }
+    }
+}
+
+/**
+ * Renders the captured [image] fit-to-screen with a draggable, corner-resizable crop rectangle.
+ * The rectangle is tracked in container pixels; [onRegionChange] reports it back as resolution-
+ * independent [CropRegion] fractions of the displayed image so the ViewModel can crop the full-res
+ * original.
+ */
+@Composable
+private fun CropCanvas(
+    image: ImageBitmap,
+    onRegionChange: (CropRegion) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    BoxWithConstraints(modifier) {
+        val cw = with(density) { maxWidth.toPx() }
+        val ch = with(density) { maxHeight.toPx() }
+        val bw = image.width.toFloat()
+        val bh = image.height.toFloat()
+
+        // The fitted (letterboxed) image rectangle inside the container — overlay math hangs off this.
+        val scale = min(cw / bw, ch / bh)
+        val dispW = bw * scale
+        val dispH = bh * scale
+        val imgLeft = (cw - dispW) / 2f
+        val imgTop = (ch - dispH) / 2f
+        val imgRight = imgLeft + dispW
+        val imgBottom = imgTop + dispH
+        val minSize = with(density) { 56.dp.toPx() }
+
+        var crop by remember(cw, ch, bw, bh) {
+            mutableStateOf(
+                Rect(
+                    imgLeft + dispW * 0.06f,
+                    imgTop + dispH * 0.06f,
+                    imgRight - dispW * 0.06f,
+                    imgBottom - dispH * 0.06f,
+                ),
+            )
+        }
+        LaunchedEffect(crop, dispW, dispH) {
+            onRegionChange(
+                CropRegion(
+                    left = ((crop.left - imgLeft) / dispW).coerceIn(0f, 1f),
+                    top = ((crop.top - imgTop) / dispH).coerceIn(0f, 1f),
+                    right = ((crop.right - imgLeft) / dispW).coerceIn(0f, 1f),
+                    bottom = ((crop.bottom - imgTop) / dispH).coerceIn(0f, 1f),
+                ),
+            )
+        }
+
+        Image(
+            bitmap = image,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        )
+
+        // Dim everything outside the crop rectangle, then outline it.
+        Canvas(Modifier.fillMaxSize()) {
+            val dim = Color.Black.copy(alpha = 0.55f)
+            drawRect(dim, topLeft = Offset(0f, 0f), size = Size(cw, crop.top))
+            drawRect(dim, topLeft = Offset(0f, crop.bottom), size = Size(cw, ch - crop.bottom))
+            drawRect(dim, topLeft = Offset(0f, crop.top), size = Size(crop.left, crop.height))
+            drawRect(
+                dim,
+                topLeft = Offset(crop.right, crop.top),
+                size = Size(cw - crop.right, crop.height),
+            )
+            drawRect(
+                color = Color.White,
+                topLeft = Offset(crop.left, crop.top),
+                size = Size(crop.width, crop.height),
+                style = Stroke(width = with(density) { 2.dp.toPx() }),
+            )
+        }
+
+        // Drag the interior to move the whole selection.
+        Box(
+            Modifier
+                .offset { IntOffset(crop.left.roundToInt(), crop.top.roundToInt()) }
+                .size(
+                    with(density) { crop.width.toDp() },
+                    with(density) { crop.height.toDp() },
+                )
+                .pointerInput(imgLeft, imgTop, imgRight, imgBottom) {
+                    detectDragGestures { change, drag ->
+                        change.consume()
+                        val newLeft = (crop.left + drag.x).coerceIn(imgLeft, imgRight - crop.width)
+                        val newTop = (crop.top + drag.y).coerceIn(imgTop, imgBottom - crop.height)
+                        crop = Rect(newLeft, newTop, newLeft + crop.width, newTop + crop.height)
+                    }
+                },
+        )
+
+        // Four corner handles, each resizing its own edges.
+        CropHandle(corner = Offset(crop.left, crop.top), density = density) { dx, dy ->
+            crop = Rect(
+                (crop.left + dx).coerceIn(imgLeft, crop.right - minSize),
+                (crop.top + dy).coerceIn(imgTop, crop.bottom - minSize),
+                crop.right,
+                crop.bottom,
+            )
+        }
+        CropHandle(corner = Offset(crop.right, crop.top), density = density) { dx, dy ->
+            crop = Rect(
+                crop.left,
+                (crop.top + dy).coerceIn(imgTop, crop.bottom - minSize),
+                (crop.right + dx).coerceIn(crop.left + minSize, imgRight),
+                crop.bottom,
+            )
+        }
+        CropHandle(corner = Offset(crop.left, crop.bottom), density = density) { dx, dy ->
+            crop = Rect(
+                (crop.left + dx).coerceIn(imgLeft, crop.right - minSize),
+                crop.top,
+                crop.right,
+                (crop.bottom + dy).coerceIn(crop.top + minSize, imgBottom),
+            )
+        }
+        CropHandle(corner = Offset(crop.right, crop.bottom), density = density) { dx, dy ->
+            crop = Rect(
+                crop.left,
+                crop.top,
+                (crop.right + dx).coerceIn(crop.left + minSize, imgRight),
+                (crop.bottom + dy).coerceIn(crop.top + minSize, imgBottom),
+            )
+        }
+    }
+}
+
+/** A round, draggable corner handle centered on [corner]; reports drag deltas in pixels. */
+@Composable
+private fun CropHandle(
+    corner: Offset,
+    density: androidx.compose.ui.unit.Density,
+    onDrag: (dx: Float, dy: Float) -> Unit,
+) {
+    val touch = 44.dp
+    val half = with(density) { touch.toPx() / 2f }
+    Box(
+        Modifier
+            .offset { IntOffset((corner.x - half).roundToInt(), (corner.y - half).roundToInt()) }
+            .size(touch)
+            .pointerInput(Unit) {
+                detectDragGestures { change, drag ->
+                    change.consume()
+                    onDrag(drag.x, drag.y)
+                }
+            },
+    ) {
+        Box(
+            Modifier
+                .align(Alignment.Center)
+                .size(18.dp)
+                .background(Color.White, CircleShape)
+                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+        )
     }
 }
 
@@ -443,6 +727,19 @@ internal fun SecondaryButton(label: String, onClick: () -> Unit) {
             style = RecipeTheme.typography.body,
             color = MaterialTheme.colorScheme.onBackground,
         )
+    }
+}
+
+/** Secondary button for dark/camera surfaces — white outline and label. */
+@Composable
+private fun SecondaryButtonOnDark(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(percent = 50))
+            .clickable(onClick = onClick)
+            .padding(horizontal = RecipeTheme.spacing.xxxl, vertical = RecipeTheme.spacing.xl),
+    ) {
+        Text(text = label, style = RecipeTheme.typography.body, color = Color.White)
     }
 }
 
