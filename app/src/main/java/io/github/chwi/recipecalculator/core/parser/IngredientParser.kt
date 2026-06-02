@@ -46,7 +46,24 @@ private val UNICODE_FRACTIONS = mapOf(
 )
 
 /** Leading list-marker noise that printed recipes (and OCR) often have. */
-private val LEADING_NOISE = Regex("""^[\s•\-–—*·●▪■□◦◯○]+""")
+private val LEADING_NOISE = Regex("""^[\s•\-–—*·●▪■□☐▢◻◦◯○]+""")
+
+/**
+ * A leading lone uppercase letter immediately before a quantity. ML Kit routinely OCRs print
+ * checkboxes (☐) as a stray "D " / "U " / "O " prefix, and sometimes glues it straight onto
+ * the qty ("U1tbsp"). The lookahead also accepts `/<digit>` so that a checkbox stacked in
+ * front of a bare-numerator fraction ("D /2cup pasta water") still fires; [LEADING_BARE_FRACTION]
+ * then restores the missing "1". `\s*` covers both spaced and glued forms.
+ */
+private val LEADING_OCR_CHECKBOX = Regex("""^[A-Z]\s*(?=/?\d)""")
+
+/**
+ * A leading fraction missing its numerator ("/2 cup pasta water" → "1/2 cup pasta water").
+ * OCR drops the leading "1" often enough on small fractions that without this the row has no
+ * qty signal and gets filtered out. Anchored at start so mid-line slashes ("cooking/kosher")
+ * are untouched.
+ */
+private val LEADING_BARE_FRACTION = Regex("""^/(\d)""")
 
 /** A leading enumeration like "1." or "1)" only if followed by something else — keep bare "1" as a qty. */
 private val LEADING_ENUMERATION = Regex("""^\d+\s*[.)]\s+""")
@@ -56,13 +73,23 @@ private val QTY_REGEX = Regex("""^(\d+\s+\d+\s*/\s*\d+|\d+\s*/\s*\d+|\d+(?:\.\d+
 
 /**
  * A dual "metric/imperial" quantity printed glued together at line start, as recipe sites do:
- * "100g/3.5 oz", "175g/6 oz", "400g/14 oz". We keep the metric measure (`$1 $2`) and discard
- * the imperial alternative. The imperial unit token is matched loosely (`[a-zA-Z0-9]{1,3}`)
- * because OCR routinely mangles "oz" into "0z"/"0Z". The metric number tolerates an O/o in
- * place of a zero ("10Og" → "100g") — another stock OCR confusion — cleaned up in the replacement.
+ * "100g/3.5 oz", "175g/6 oz", "400g/14 oz". We keep the metric measure and discard the imperial
+ * alternative.
+ *
+ * The metric-side unit is optional in the pattern (`[a-zA-Z]*`) because OCR sometimes misreads
+ * a lowercase `g` as a `9` and glues it onto the digits ("175g" → "1759"). When that happens
+ * we'd see "1759/6 oz" and parse it as a fraction; instead we strip the trailing `9` and
+ * assume grams. The pattern is only treated as dual-metric when the imperial-side unit is one
+ * of [IMPERIAL_UNITS] (`oz`/`0z`/`lb`/`lbs`); anything else falls through unchanged so we don't
+ * mangle real fractions like "1/4 tsp pepper".
+ *
+ * The metric number tolerates `O`/`o` in place of a zero ("10Og" → "100g") — another stock
+ * OCR confusion — cleaned up in the replacement callback.
  */
 private val DUAL_METRIC_IMPERIAL =
-    Regex("""^([\dOo]+(?:[.,]\d+)?)\s*([a-zA-Z]+)\s*/\s*\d+(?:[.,]\d+)?\s*[a-zA-Z0-9]{1,3}\b""")
+    Regex("""^([\dOo]+(?:[.,]\d+)?)\s*([a-zA-Z]*)\s*/\s*\d+(?:[.,]\d+)?\s*([a-zA-Z0-9]{1,3})\b""")
+
+private val IMPERIAL_UNITS = setOf("oz", "0z", "lb", "lbs")
 
 /** A leading number glued straight onto a unit or word — "100g", "1garlic", "1/2cup". */
 private val NUMBER_GLUED_TO_WORD = Regex("""^(\d+\s*/\s*\d+|\d+(?:[.,]\d+)?)([a-zA-Z])""")
@@ -89,13 +116,26 @@ fun parseIngredientLine(rawInput: String): ParsedLine {
     if (rawText.isEmpty()) return ParsedLine(rawText = rawText)
 
     var working = rawText.replace(LEADING_NOISE, "")
+        .replace(LEADING_OCR_CHECKBOX, "")
+        .replace(LEADING_BARE_FRACTION, "1/$1")
     UNICODE_FRACTIONS.forEach { (glyph, ascii) -> working = working.replace(glyph, ascii) }
     working = working
         // Collapse a glued metric/imperial pair to its metric half (fixing an O-for-0 in the
         // number), then split any number that sits flush against the following letter — both
         // happen before whitespace normalization.
         .replace(DUAL_METRIC_IMPERIAL) { m ->
-            "${m.groupValues[1].replace('O', '0').replace('o', '0')} ${m.groupValues[2]} "
+            val imperialUnit = m.groupValues[3].lowercase()
+            if (imperialUnit !in IMPERIAL_UNITS) return@replace m.value
+            val cleanedNumber = m.groupValues[1].replace('O', '0').replace('o', '0')
+            val explicitMetricUnit = m.groupValues[2]
+            val (number, unit) = when {
+                explicitMetricUnit.isNotEmpty() -> cleanedNumber to explicitMetricUnit
+                // No metric unit between number and slash → OCR likely fused the unit letter
+                // into the number. Trailing '9' is the canonical 'g' misread; peel it off.
+                cleanedNumber.length >= 2 && cleanedNumber.last() == '9' -> cleanedNumber.dropLast(1) to "g"
+                else -> cleanedNumber to "g"
+            }
+            "$number $unit "
         }
         .replace(NUMBER_GLUED_TO_WORD, "$1 $2")
         .replace(Regex("""\s+"""), " ")

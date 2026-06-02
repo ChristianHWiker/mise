@@ -392,6 +392,117 @@ class IngredientParserTest {
         assertTrue("garlic missing in: $names", names.contains("garlic"))
     }
 
+    // ── OCR'd checkbox glyph + dropped fraction numerator (recipetineats carbonara) ──────────
+
+    @Test
+    fun strips_leading_ocr_checkbox_letter_before_qty() {
+        // ML Kit reads the print ☐ checkbox as a stray "D " prefix.
+        val r = parseIngredientLine("D 2 egg yolks (Note 2)")
+        assertEquals(Rational.of(2, 1), r.qty)
+        assertEquals("egg yolks", r.name)
+        assertEquals("Note 2", r.modifier)
+    }
+
+    @Test
+    fun strips_leading_ocr_checkbox_before_qty_with_unit() {
+        val r = parseIngredientLine("D 1 tbsp cooking/kosher salt (for cooking pasta)")
+        assertEquals(Rational.of(1, 1), r.qty)
+        assertEquals("tbsp", r.unit)
+        assertTrue("name was '${r.name}'", r.name.contains("salt"))
+    }
+
+    @Test
+    fun does_not_strip_leading_capital_when_no_qty_follows() {
+        // Guard against LEADING_OCR_CHECKBOX over-firing: a capital-first phrase with no digit
+        // immediately after must keep its first word.
+        assertEquals("Salt to taste", parseIngredientLine("Salt to taste").name)
+        assertEquals(
+            "Parsley, finely chopped",
+            parseIngredientLine("Parsley, finely chopped").let { "${it.name}, ${it.modifier}" },
+        )
+    }
+
+    @Test
+    fun parses_leading_bare_fraction_as_implicit_one() {
+        // OCR drops the leading "1" of "1/2cup", leaving "/2cup". Without the implicit-1
+        // restore the line has no qty signal and gets filtered out as junk.
+        val r = parseIngredientLine("/2cup pasta cooking water")
+        assertEquals(Rational.of(1, 2), r.qty)
+        assertEquals("cup", r.unit)
+        assertEquals("pasta cooking water", r.name)
+    }
+
+    @Test
+    fun strips_leading_ocr_checkbox_before_bare_fraction() {
+        // Checkbox-as-letter sits in front of an OCR-dropped-numerator fraction: "D /2cup …".
+        // Both fixes must chain: strip the "D ", then restore "/2" → "1/2".
+        val r = parseIngredientLine("D /2cup pasta cooking water")
+        assertEquals(Rational.of(1, 2), r.qty)
+        assertEquals("cup", r.unit)
+        assertEquals("pasta cooking water", r.name)
+    }
+
+    @Test
+    fun strips_leading_ocr_checkbox_glued_to_qty() {
+        // OCR sometimes glues the checkbox-as-letter straight onto the qty: "U1tbsp …".
+        val r = parseIngredientLine("U1tbsp cooking/kosher salt (for cooking pasta)")
+        assertEquals(Rational.of(1, 1), r.qty)
+        assertEquals("tbsp", r.unit)
+        assertTrue("name was '${r.name}'", r.name.contains("salt"))
+    }
+
+    @Test
+    fun recovers_dual_metric_imperial_when_g_misread_as_9() {
+        // OCR read "175g/6 oz" as "1759/6 0z" — without recovery, "1759/6" parses as a fraction.
+        val r = parseIngredientLine("1759/6 0z guanciale (pancetta or block bacon)")
+        assertEquals(Rational.of(175, 1), r.qty)
+        assertEquals("g", r.unit)
+        assertEquals("guanciale", r.name)
+        assertTrue("modifier was '${r.modifier}'", r.modifier!!.contains("pancetta or block bacon"))
+    }
+
+    @Test
+    fun does_not_mangle_real_fractions_with_non_imperial_unit() {
+        // Guard against DUAL_METRIC_IMPERIAL with-optional-unit firing on "1/4 tsp pepper".
+        val r = parseIngredientLine("1/4 tsp black pepper")
+        assertEquals(Rational.of(1, 4), r.qty)
+        assertEquals("tsp", r.unit)
+        assertEquals("black pepper", r.name)
+    }
+
+    @Test
+    fun recipetineats_capture_recovers_all_nine_ingredients() {
+        // Verbatim raw OCR (2026-06-02 Pixel capture, recipetineats.com/carbonara, capture #3
+        // after zoom+crop). All nine real ingredients must survive refine; the GARNISH section
+        // and standalone garnish names must not.
+        val ocr = listOf(
+            "175g/6 oz guanciale (pancetta or block bacon), weight after skin removed (Note",
+            "1)",
+            "2 large eggs (Note 2)",
+            "2 egg yolks (Note 2)",
+            "100g/3.5 0Z parmigiano reggiano, finely shredded (or pecorino romano, sub",
+            "pamesan, Note 3)",
+            "/4 tsp black pepper",
+            "D 400g/14 0Z spaghetti",
+            "1tbsp cooking/kosher salt (for cooking pasta)",
+            "D /2cup pasta cooking water",
+            "1garlic clove, finely minced (optional, Note 4)",
+            "GARNISH (OPTIONAL):",
+            "Parsley, finely chopped",
+            "Parmigiano reggiano",
+        )
+        val refined = refineForIngredients(parseIngredientBlock(ocr.joinToString("\n")))
+        val names = refined.joinToString(" | ") { it.name.lowercase() }
+        listOf("guanciale", "eggs", "yolks", "parmigiano", "pepper", "spaghetti", "salt", "water", "garlic")
+            .forEach { needle ->
+                assertTrue("'$needle' missing in: $names", names.contains(needle))
+            }
+        // Guanciale must be 175 g, not the 1759/6 fraction.
+        val guanciale = refined.single { it.name.lowercase().contains("guanciale") }
+        assertEquals(Rational.of(175, 1), guanciale.qty)
+        assertEquals("g", guanciale.unit)
+    }
+
     @Test
     fun refine_drops_empty_and_pure_noise() {
         val rows = parseIngredientBlock(
