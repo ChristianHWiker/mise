@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gradle product flavors · how this app's split actually works</title>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --text: #1a1a1a;
+    --muted: #5b5b58;
+    --border: #e5e5e2;
+    --accent: #0369a1;
+    --accent-bg: #e0f2fe;
+    --code-bg: #f4f4f0;
+    --code-border: #e5e5e2;
+    --warning: #d97706;
+    --success: #059669;
+    --mono: "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.65; }
+  body { max-width: 780px; margin: 0 auto; padding: 56px 32px 96px; }
+
+  h1 { font-size: 30px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--muted); font-size: 16px; margin: 0 0 40px; }
+  h2 { font-size: 21px; font-weight: 600; margin: 48px 0 14px; letter-spacing: -0.005em; }
+  h3 { font-size: 15px; font-weight: 600; margin: 24px 0 8px; }
+  p { margin: 0 0 14px; }
+  ul { padding-left: 22px; margin: 0 0 14px; }
+  ul li { margin-bottom: 4px; }
+  a { color: var(--accent); }
+
+  code:not(pre code) {
+    font-family: var(--mono); font-size: 0.88em;
+    background: var(--code-bg); border: 1px solid var(--code-border);
+    padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+  }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    padding: 12px 16px;
+    margin: 18px 0;
+  }
+  .callout.warning { border-left-color: var(--warning); }
+  .callout.success { border-left-color: var(--success); }
+  .callout .label {
+    font-family: var(--mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--accent); margin-bottom: 4px; font-weight: 600;
+  }
+  .callout.warning .label { color: var(--warning); }
+  .callout.success .label { color: var(--success); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .code {
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    margin: 14px 0;
+    background: var(--code-bg);
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .code .head {
+    padding: 6px 12px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--muted);
+    background: #ecece6;
+    border-bottom: 1px solid var(--code-border);
+    display: flex; justify-content: space-between;
+  }
+  .code .head .lang { color: var(--accent); }
+  .code pre {
+    margin: 0; padding: 14px 16px;
+    font-family: var(--mono); line-height: 1.55;
+    overflow-x: auto; white-space: pre;
+  }
+  .code .kw { color: #7c3aed; font-weight: 500; }
+  .code .ty { color: #0369a1; }
+  .code .str { color: #b91c1c; }
+  .code .com { color: #6b7280; font-style: italic; }
+  .code .fn { color: #c2410c; }
+
+  .figure {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    margin: 18px 0;
+    background: white;
+  }
+  .figure svg { width: 100%; height: auto; display: block; }
+  .figure .cap { font-size: 12px; color: var(--muted); margin-top: 10px; font-family: var(--mono); }
+
+  table.matrix {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  table.matrix th, table.matrix td {
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.matrix th {
+    font-weight: 600;
+    background: var(--code-bg);
+    font-size: 13px;
+  }
+  table.matrix td code { background: white; }
+</style>
+</head>
+<body>
+
+<h1>Gradle product flavors</h1>
+<p class="subtitle">How the <code>play</code> / <code>portfolio</code> split in this app actually works under the hood — written so you can recognize the pattern next time you see it.</p>
+
+<h2>The two-axis idea</h2>
+<p>Android's Gradle plugin lets you build the same app multiple ways at once. The two axes are <b>build types</b> and <b>product flavors</b>, and a <b>variant</b> is the cross-product of one from each axis.</p>
+
+<table class="matrix">
+  <thead>
+    <tr><th></th><th><code>debug</code> build type</th><th><code>release</code> build type</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th><code>play</code> flavor</th>
+      <td><code>playDebug</code></td>
+      <td><code>playRelease</code></td>
+    </tr>
+    <tr>
+      <th><code>portfolio</code> flavor</th>
+      <td><code>portfolioDebug</code></td>
+      <td><code>portfolioRelease</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Every Gradle task you see — <code>assemble</code>, <code>test</code>, <code>install</code> — generates a version per variant. <code>assemblePlayDebug</code> builds only the play/debug APK; <code>assemble</code> with no suffix builds all four.</p>
+
+<div class="callout">
+  <div class="label">Mental model</div>
+  <p>Build types are about <i>how</i> you build (debug vs minified release). Flavors are about <i>what</i> you build (which feature set, which audience, which backend). Same app, different shapes.</p>
+</div>
+
+<h2>Source set merging — the part that does the magic</h2>
+<p>Inside <code>app/src/</code> there's a directory per source set. When Gradle builds a variant, it merges several source sets into one classpath:</p>
+
+<div class="figure">
+  <svg viewBox="0 0 640 240" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L9,3 z" fill="#5b5b58"/>
+      </marker>
+    </defs>
+
+    <rect x="20" y="20" width="140" height="50" rx="4" fill="#fafaf7" stroke="#5b5b58"/>
+    <text x="90" y="42" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#1a1a1a">src/main/</text>
+    <text x="90" y="58" text-anchor="middle" font-family="system-ui" font-size="11" fill="#5b5b58">shared</text>
+
+    <rect x="20" y="90" width="140" height="50" rx="4" fill="#e0f2fe" stroke="#0369a1"/>
+    <text x="90" y="112" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#0369a1">src/portfolio/</text>
+    <text x="90" y="128" text-anchor="middle" font-family="system-ui" font-size="11" fill="#5b5b58">flavor-specific</text>
+
+    <rect x="20" y="160" width="140" height="50" rx="4" fill="#fafaf7" stroke="#5b5b58"/>
+    <text x="90" y="182" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" fill="#1a1a1a">src/debug/</text>
+    <text x="90" y="198" text-anchor="middle" font-family="system-ui" font-size="11" fill="#5b5b58">build-type-specific</text>
+
+    <line x1="160" y1="45" x2="290" y2="105" stroke="#5b5b58" marker-end="url(#arr2)"/>
+    <line x1="160" y1="115" x2="290" y2="115" stroke="#5b5b58" marker-end="url(#arr2)"/>
+    <line x1="160" y1="185" x2="290" y2="125" stroke="#5b5b58" marker-end="url(#arr2)"/>
+
+    <rect x="295" y="80" width="190" height="70" rx="4" fill="#fafaf7" stroke="#5b5b58" stroke-width="1.5"/>
+    <text x="390" y="106" text-anchor="middle" font-family="system-ui" font-size="13" font-weight="600" fill="#1a1a1a">merged classpath</text>
+    <text x="390" y="124" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#5b5b58">for portfolioDebug</text>
+
+    <line x1="485" y1="115" x2="555" y2="115" stroke="#5b5b58" marker-end="url(#arr2)"/>
+
+    <rect x="560" y="90" width="60" height="50" rx="4" fill="#fafaf7" stroke="#0369a1" stroke-width="1.5"/>
+    <text x="590" y="118" text-anchor="middle" font-family="system-ui" font-size="11" font-weight="600" fill="#0369a1">APK</text>
+  </svg>
+  <div class="cap">For a <code>portfolioDebug</code> build, three source sets merge into one classpath. <code>playDebug</code> would swap the middle box for <code>src/play/</code>.</div>
+</div>
+
+<p>If a file with the same fully-qualified name exists in <code>src/main/</code> <i>and</i> <code>src/portfolio/</code>, that's an error — they'd clash. But if a file only exists in <code>src/portfolio/</code>, it's included only when building portfolio variants. Same for <code>src/play/</code>.</p>
+
+<p>This is the trick that lets <code>SecurityModule.kt</code> exist in both <code>src/play/</code> and <code>src/portfolio/</code> with the same class name and package — only one is on the classpath at a time, so there's nothing to conflict.</p>
+
+<h2>How the security seam is wired</h2>
+<p>Three pieces, in this app:</p>
+
+<div class="code">
+  <div class="head"><span>src/main/.../security/AppLockController.kt</span><span class="lang">kotlin</span></div>
+<pre><span class="kw">interface</span> <span class="ty">AppLockController</span> {
+    <span class="kw">fun</span> <span class="fn">isAvailable</span>(): <span class="ty">Boolean</span>
+    <span class="kw">suspend fun</span> <span class="fn">requestUnlock</span>(activity: <span class="ty">FragmentActivity</span>): <span class="ty">UnlockResult</span>
+    <span class="com">// …</span>
+}</pre>
+</div>
+
+<div class="code">
+  <div class="head"><span>src/play/.../security/SecurityModule.kt</span><span class="lang">kotlin</span></div>
+<pre><span class="kw">@Module @InstallIn</span>(<span class="ty">SingletonComponent</span>::<span class="kw">class</span>)
+<span class="kw">abstract class</span> <span class="ty">SecurityModule</span> {
+    <span class="kw">@Binds abstract fun</span> <span class="fn">bindAppLockController</span>(
+        impl: <span class="ty">NoOpAppLockController</span>
+    ): <span class="ty">AppLockController</span>
+    <span class="com">// …</span>
+}</pre>
+</div>
+
+<div class="code">
+  <div class="head"><span>src/portfolio/.../security/SecurityModule.kt</span><span class="lang">kotlin</span></div>
+<pre><span class="com">// Same package, same class name, same @Module annotation — different source set.</span>
+<span class="kw">@Module @InstallIn</span>(<span class="ty">SingletonComponent</span>::<span class="kw">class</span>)
+<span class="kw">abstract class</span> <span class="ty">SecurityModule</span> {
+    <span class="kw">@Binds abstract fun</span> <span class="fn">bindAppLockController</span>(
+        impl: <span class="ty">BiometricAppLockController</span>
+    ): <span class="ty">AppLockController</span>
+    <span class="com">// …</span>
+}</pre>
+</div>
+
+<p>UI code that needs to lock the app injects <code>AppLockController</code> and never knows which impl Hilt handed it. In the play build, <code>isAvailable()</code> returns false and the Settings row hides. In the portfolio build (once Phase 4 lands), it returns whatever <code>BiometricManager</code> says.</p>
+
+<div class="callout success">
+  <div class="label">Why this is better than <code>if (BuildConfig.FLAVOR == "play")</code></div>
+  <p>Flavor checks scattered through UI code are how this kind of split rots. The interface seam keeps the conditional in exactly one place per feature — the DI binding — and lets the rest of the code stay flavor-agnostic. As a bonus, the play APK doesn't even contain the biometric classes once Phase 4 swaps real impls in; the unused source set isn't compiled at all.</p>
+</div>
+
+<h2>The Gradle config that turns it on</h2>
+
+<div class="code">
+  <div class="head"><span>app/build.gradle.kts</span><span class="lang">kotlin</span></div>
+<pre>android {
+    <span class="com">// …</span>
+    flavorDimensions += <span class="str">"audience"</span>
+    productFlavors {
+        create(<span class="str">"play"</span>) {
+            dimension = <span class="str">"audience"</span>
+            <span class="com">// keeps the default applicationId — the Play Store identity</span>
+        }
+        create(<span class="str">"portfolio"</span>) {
+            dimension = <span class="str">"audience"</span>
+            applicationIdSuffix = <span class="str">".portfolio"</span>
+            versionNameSuffix = <span class="str">"-portfolio"</span>
+        }
+    }
+}</pre>
+</div>
+
+<p>Two things to understand:</p>
+<ul>
+  <li><b>Flavor dimensions</b> let you have multiple orthogonal axes (e.g. <code>audience</code> × <code>backend</code> = 4 flavors total). This app uses one dimension with two values, so the math is trivial.</li>
+  <li><b>applicationIdSuffix</b> changes the on-device package name so both variants install side-by-side. Without it, installing one would replace the other.</li>
+</ul>
+
+<h3>Flavor-specific dependencies</h3>
+<p>This is the syntax you'll use in Phase 4 when adding the biometric and integrity libraries to portfolio only:</p>
+
+<div class="code">
+  <div class="head"><span>app/build.gradle.kts</span><span class="lang">kotlin</span></div>
+<pre>dependencies {
+    <span class="com">// shared by both flavors</span>
+    implementation(libs.androidx.core.ktx)
+
+    <span class="com">// portfolio only — quoted because there's no compile-time helper for flavor configs</span>
+    <span class="str">"portfolioImplementation"</span>(libs.androidx.biometric)
+    <span class="str">"portfolioImplementation"</span>(libs.androidx.security.crypto)
+    <span class="str">"portfolioImplementation"</span>(libs.play.integrity)
+}</pre>
+</div>
+
+<p>The pattern is <code>&lt;flavorName&gt;Implementation(...)</code>. AGP generates these configurations for you per flavor; the string-quoted form is just to satisfy the Kotlin DSL's type system.</p>
+
+<h2>Commands you'll actually run</h2>
+
+<table class="matrix">
+  <thead>
+    <tr><th>Command</th><th>What it does</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>./gradlew :app:assemblePlayDebug</code></td>
+      <td>Build only the play/debug APK</td>
+    </tr>
+    <tr>
+      <td><code>./gradlew :app:assemblePortfolioDebug</code></td>
+      <td>Build only the portfolio/debug APK</td>
+    </tr>
+    <tr>
+      <td><code>./gradlew :app:installPortfolioDebug</code></td>
+      <td>Build + install portfolio on the connected device</td>
+    </tr>
+    <tr>
+      <td><code>./gradlew :app:testPlayDebugUnitTest</code></td>
+      <td>Run unit tests for the play flavor</td>
+    </tr>
+    <tr>
+      <td><code>./gradlew :app:assemble</code></td>
+      <td>Build all four variants</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <div class="label">Android Studio UI</div>
+  <p>The <b>Build Variants</b> panel (View → Tool Windows → Build Variants) lets you switch which variant Studio uses for "Run". When you flip to <code>portfolioDebug</code>, Studio compiles only that variant and your IDE sees the portfolio source set as part of the project — files in <code>src/play/</code> are greyed out. This trips a lot of people up: <i>"why doesn't my code see this class?"</i> is usually because the wrong variant is selected.</p>
+</div>
+
+<h2>Side-by-side install proof</h2>
+<p>Because the portfolio flavor declares <code>applicationIdSuffix = ".portfolio"</code>, the two APKs have different package identifiers and Android treats them as different apps:</p>
+
+<div class="code">
+  <div class="head"><span>shell</span><span class="lang">bash</span></div>
+<pre>adb shell pm list packages | grep recipecalculator
+<span class="com"># package:io.github.chwi.recipecalculator           ← play build
+# package:io.github.chwi.recipecalculator.portfolio ← portfolio build</span></pre>
+</div>
+
+<p>This is the win: on your phone the portfolio build is a separate icon you can open during interviews; the play build is what you actually use.</p>
+
+<h2>Where to go from here</h2>
+<p>What's on disk after this commit:</p>
+<ul>
+  <li><code>src/main/.../core/security/*.kt</code> — three interfaces (the contract)</li>
+  <li><code>src/play/.../core/security/*.kt</code> — three no-op impls + <code>SecurityModule</code></li>
+  <li><code>src/portfolio/.../core/security/*.kt</code> — three stub impls with intent-signalling names (<code>Biometric*</code>, <code>Encrypted*</code>, <code>PlayIntegrity*</code>) but no-op bodies + <code>SecurityModule</code></li>
+</ul>
+
+<p>Phase 4 work doesn't touch the seam — it just swaps the portfolio bodies for real implementations, adds <code>portfolioImplementation</code> dependencies, and updates the portfolio <code>AndroidManifest.xml</code> with the biometric permission. The play side never changes.</p>
+
+</body>
+</html>

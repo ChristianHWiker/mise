@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 4 — Security &amp; Hardening · Recipe Calculator</title>
+<style>
+  :root {
+    --bg: #fafaf7;
+    --text: #1a1a1a;
+    --muted: #5b5b58;
+    --border: #e5e5e2;
+    --border-strong: #d4d4d0;
+    --accent: #0369a1;
+    --accent-bg: #e0f2fe;
+    --code-bg: #f4f4f0;
+    --code-border: #e5e5e2;
+    --critical: #dc2626;
+    --warning: #d97706;
+    --info: #0369a1;
+    --success: #059669;
+    --mono: "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; line-height: 1.65; }
+  body { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+  header.top {
+    grid-column: 1 / -1;
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 32px;
+    display: flex; align-items: baseline; gap: 16px;
+    font-size: 14px;
+  }
+  header.top .crumb { color: var(--muted); }
+  header.top .crumb b { color: var(--text); font-weight: 600; }
+  header.top .tag { font-family: var(--mono); font-size: 12px; color: var(--accent); background: var(--accent-bg); padding: 2px 8px; border-radius: 3px; }
+
+  aside.toc {
+    position: sticky; top: 49px; align-self: start;
+    height: calc(100vh - 49px);
+    overflow-y: auto;
+    padding: 32px 20px 32px 32px;
+    border-right: 1px solid var(--border);
+    font-size: 14px;
+  }
+  aside.toc h4 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+  aside.toc ol { list-style: none; padding: 0; margin: 0; }
+  aside.toc ol li { margin: 0; padding: 0; }
+  aside.toc ol > li > a {
+    display: block;
+    padding: 6px 10px;
+    color: var(--text);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    margin-left: -2px;
+    line-height: 1.4;
+  }
+  aside.toc ol > li > a:hover { color: var(--accent); }
+  aside.toc ol > li > a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 500; }
+
+  main {
+    padding: 48px 64px 96px;
+    max-width: 880px;
+  }
+  main > section { margin-bottom: 72px; scroll-margin-top: 72px; }
+  main h1 {
+    font-size: 32px; font-weight: 600; line-height: 1.25;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+  main .subtitle { color: var(--muted); font-size: 17px; margin: 0 0 32px; max-width: 720px; }
+  main h2 {
+    font-size: 22px; font-weight: 600;
+    margin: 0 0 16px;
+    letter-spacing: -0.005em;
+  }
+  main h3 {
+    font-size: 16px; font-weight: 600;
+    margin: 28px 0 8px;
+    color: var(--text);
+  }
+  main p { margin: 0 0 14px; max-width: 720px; }
+  main a { color: var(--accent); }
+  main ul { padding-left: 22px; margin: 0 0 14px; max-width: 720px; }
+  main ul li { margin-bottom: 4px; }
+  main code:not(pre code) {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .callout {
+    border-left: 3px solid var(--info);
+    padding: 12px 16px;
+    margin: 18px 0;
+    background: transparent;
+    max-width: 720px;
+  }
+  .callout.warning { border-left-color: var(--warning); }
+  .callout.critical { border-left-color: var(--critical); }
+  .callout.success { border-left-color: var(--success); }
+  .callout .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--info);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .callout.warning .label { color: var(--warning); }
+  .callout.critical .label { color: var(--critical); }
+  .callout.success .label { color: var(--success); }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .code {
+    border: 1px solid var(--code-border);
+    border-radius: 4px;
+    margin: 16px 0;
+    background: var(--code-bg);
+    overflow: hidden;
+    font-size: 13px;
+  }
+  .code .head {
+    padding: 6px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    background: #ecece6;
+    border-bottom: 1px solid var(--code-border);
+    display: flex; justify-content: space-between;
+  }
+  .code .head .lang { color: var(--accent); }
+  .code pre {
+    margin: 0;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .code .kw { color: #7c3aed; font-weight: 500; }
+  .code .ty { color: #0369a1; }
+  .code .str { color: #b91c1c; }
+  .code .com { color: #6b7280; font-style: italic; }
+  .code .fn { color: #c2410c; }
+
+  table.tradeoff {
+    border-collapse: collapse;
+    width: 100%;
+    max-width: 720px;
+    margin: 18px 0;
+    font-size: 14px;
+  }
+  table.tradeoff th, table.tradeoff td {
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.tradeoff th {
+    font-weight: 600;
+    background: transparent;
+    border-bottom: 1px solid var(--border-strong);
+    font-size: 13px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  table.tradeoff td.label { font-family: var(--mono); font-size: 12px; white-space: nowrap; padding-right: 18px; color: var(--muted); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid transparent;
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .pill.crit { border-color: var(--critical); color: var(--critical); } .pill.crit .dot { background: var(--critical); }
+  .pill.warn { border-color: var(--warning); color: var(--warning); } .pill.warn .dot { background: var(--warning); }
+  .pill.info { border-color: var(--info); color: var(--info); } .pill.info .dot { background: var(--info); }
+  .pill.ok   { border-color: var(--success); color: var(--success); } .pill.ok .dot { background: var(--success); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 720px; margin: 18px 0; }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 18px;
+    background: white;
+  }
+  .card h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+  .card p { margin: 0; font-size: 14px; color: var(--muted); }
+
+  .steplist { counter-reset: step; list-style: none; padding: 0; max-width: 720px; }
+  .steplist li {
+    counter-increment: step;
+    position: relative;
+    padding: 12px 0 12px 44px;
+    border-bottom: 1px solid var(--border);
+  }
+  .steplist li:last-child { border-bottom: none; }
+  .steplist li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 14px;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-family: var(--mono); font-size: 13px;
+    display: grid; place-items: center;
+    font-weight: 600;
+  }
+  .steplist li b { display: block; font-size: 15px; }
+  .steplist li span.meta { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: 8px; }
+  .steplist li p { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+
+  .figure {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    margin: 18px 0;
+    background: white;
+    max-width: 720px;
+  }
+  .figure svg { width: 100%; height: auto; display: block; }
+  .figure .cap { font-size: 12px; color: var(--muted); margin-top: 10px; font-family: var(--mono); }
+
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; }
+    aside.toc { display: none; }
+    main { padding: 32px 24px 64px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="crumb"><b>Recipe Calculator</b> · phase 4 walkthrough</div>
+  <span class="tag">v0.4.0 → v0.5.0</span>
+</header>
+
+<aside class="toc">
+  <h4>On this page</h4>
+  <ol id="toc">
+    <li><a href="#intro">The big picture</a></li>
+    <li><a href="#threat">What you're actually protecting</a></li>
+    <li><a href="#biometric">1 · Biometric app lock</a></li>
+    <li><a href="#encryption">2 · Encryption at rest</a></li>
+    <li><a href="#integrity">3 · Play Integrity API</a></li>
+    <li><a href="#backup">4 · Scoped backup rules</a></li>
+    <li><a href="#order">Suggested build order</a></li>
+    <li><a href="#portfolio">Portfolio framing</a></li>
+  </ol>
+</aside>
+
+<main>
+
+<section id="intro">
+  <h1>Phase 4 — Security &amp; Hardening</h1>
+  <p class="subtitle">Four loosely-related Android security primitives, why they exist, and how each one fits a local-only recipe app. Roughly two days of work, broken into four cleanly-committable pieces.</p>
+
+  <div class="callout">
+    <div class="label">TL;DR</div>
+    <p>You're shipping four things: a <b>biometric prompt</b> in front of the app (or specific recipes), <b>Keystore-backed encryption</b> for a small set of sensitive files/prefs, a <b>Play Integrity</b> check on launch that warns but doesn't brick, and an <b>XML backup-rules file</b> that tells Google's auto-backup what to sync to Drive and what to leave alone. None of these are individually hard — the value is in knowing why you'd choose each, what the threat model is, and where the gotchas live.</p>
+  </div>
+
+  <p>The reason these four are bundled into one phase isn't that they're technically related. It's that they all show up on Android job listings under the same heading ("secure storage / biometrics / anti-tampering"), and shipping all four with intent — not just copied from a Codelab — is what separates a portfolio that gets a callback from one that doesn't.</p>
+</section>
+
+<section id="threat">
+  <h2>What you're actually protecting</h2>
+  <p>Each piece defends against a different threat. Knowing which is which is the part most tutorials skip. The recipe app is local-only, so the threat model is narrower than a banking app's — but each control still has a clean answer.</p>
+
+  <table class="tradeoff">
+    <thead><tr><th>Control</th><th>Defends against</th><th>Concretely, what stops working for the attacker</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="label">Biometric lock</td>
+        <td>Someone picks up your unlocked phone and opens the app</td>
+        <td>They can't get past the prompt without your fingerprint / face / device PIN.</td>
+      </tr>
+      <tr>
+        <td class="label">Keystore encryption</td>
+        <td>Someone with physical access dumps app files (rooted device, ADB backup, file manager)</td>
+        <td>The bytes on disk are ciphertext. The key lives in tamper-resistant hardware and can't be exfiltrated even with root.</td>
+      </tr>
+      <tr>
+        <td class="label">Play Integrity</td>
+        <td>Someone repackages your APK, runs it on an emulator, or sideloads a tampered build</td>
+        <td>The verdict comes back as <code>UNRECOGNIZED_VERSION</code> / <code>not MEETS_DEVICE_INTEGRITY</code> and your app can refuse to operate (or degrade gracefully).</td>
+      </tr>
+      <tr>
+        <td class="label">Backup rules</td>
+        <td>Google's auto-backup syncs sensitive data to the user's Drive without your intent</td>
+        <td>The excluded files never leave the device. Includes go to Drive; excludes don't.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Notice that none of these defend against a remote network attacker — this is a local app with no backend. That's a feature, not a gap. When you write this up in the README, name the threats you're addressing and name the ones you're not.</p>
+</section>
+
+<section id="biometric">
+  <h2>1 · Biometric app lock <span class="pill info"><span class="dot"></span>half-day</span></h2>
+  <p>The user opts in via a Settings toggle. When the app comes to the foreground (cold launch, or warm resume after N minutes in the background), a system biometric prompt appears in front of the UI. If they pass it, they see the app. If they cancel, they see a "Unlock to continue" screen with a retry button.</p>
+
+  <h3>What you'll use</h3>
+  <ul>
+    <li><code>androidx.biometric:biometric:1.2.0-alpha05</code> — the Jetpack wrapper around the platform <code>BiometricPrompt</code>. (1.1.0 is the latest stable; the alpha line has Compose-friendlier APIs.)</li>
+    <li><code>androidx.biometric.BiometricPrompt</code> — the prompt itself, attached to your <code>FragmentActivity</code>.</li>
+    <li><code>androidx.biometric.BiometricManager</code> — query availability before showing the prompt.</li>
+  </ul>
+
+  <h3>The minimum viable wiring</h3>
+  <div class="code">
+    <div class="head"><span>AppLock.kt</span><span class="lang">kotlin</span></div>
+<pre><span class="kw">fun</span> <span class="fn">showBiometricPrompt</span>(
+    activity: <span class="ty">FragmentActivity</span>,
+    onSuccess: () -&gt; <span class="ty">Unit</span>,
+    onCancel: () -&gt; <span class="ty">Unit</span>,
+) {
+    <span class="kw">val</span> executor = <span class="ty">ContextCompat</span>.getMainExecutor(activity)
+    <span class="kw">val</span> prompt = <span class="ty">BiometricPrompt</span>(activity, executor,
+        <span class="kw">object</span> : <span class="ty">BiometricPrompt</span>.<span class="ty">AuthenticationCallback</span>() {
+            <span class="kw">override fun</span> <span class="fn">onAuthenticationSucceeded</span>(result: …) = onSuccess()
+            <span class="kw">override fun</span> <span class="fn">onAuthenticationError</span>(code: <span class="ty">Int</span>, msg: <span class="ty">CharSequence</span>) = onCancel()
+        })
+
+    <span class="kw">val</span> info = <span class="ty">BiometricPrompt</span>.<span class="ty">PromptInfo</span>.<span class="ty">Builder</span>()
+        .setTitle(<span class="str">"Unlock Recipe Calculator"</span>)
+        .setAllowedAuthenticators(<span class="ty">BIOMETRIC_STRONG</span> <span class="kw">or</span> <span class="ty">DEVICE_CREDENTIAL</span>)
+        .build()
+    prompt.authenticate(info)
+}</pre>
+  </div>
+
+  <h3>In this app, that's three pieces</h3>
+  <ol>
+    <li>A <b>Settings toggle</b> ("Lock app with biometrics") — a new boolean in your existing <code>SettingsRepository</code>.</li>
+    <li>A <b>lifecycle observer</b> in <code>MainActivity</code> (or a top-level Composable) that tracks <code>ON_STOP</code> / <code>ON_START</code>, computes time-in-background, and re-locks if &gt; N minutes. <code>androidx.lifecycle</code>'s <code>ProcessLifecycleOwner</code> is the right hook.</li>
+    <li>A <b>locked overlay Composable</b> that sits above the nav host while <code>isLocked</code> is true. Tapping it triggers <code>showBiometricPrompt</code>.</li>
+  </ol>
+
+  <p>Optionally, a per-recipe <code>isLocked: Boolean</code> column (Room migration v2) lets the user mark individual recipes private — the same prompt fires when they tap such a recipe. That's a nice differentiator and shows you can do a Room migration.</p>
+
+  <div class="callout warning">
+    <div class="label">Gotcha</div>
+    <p>Always call <code>BiometricManager.from(ctx).canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)</code> before showing the prompt and branch on the result. On a phone with no enrolled fingerprint and no device PIN, the prompt will fail immediately — you want a friendly "set up a screen lock to enable this" message, not a crash dialog.</p>
+  </div>
+  <div class="callout warning">
+    <div class="label">Gotcha</div>
+    <p>The emulator doesn't have a biometric by default. In the AVD's extended controls (the ⋯ button on the emulator window) go to <b>Fingerprint</b> and use "Touch Sensor" to simulate a scan. The device PIN fallback works without configuration.</p>
+  </div>
+</section>
+
+<section id="encryption">
+  <h2>2 · Encryption at rest <span class="pill info"><span class="dot"></span>half-day</span></h2>
+  <p>You need to know two layers here, and the second is built on the first.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h4>Android Keystore</h4>
+      <p>A platform service that stores cryptographic keys in tamper-resistant hardware (TEE / StrongBox on modern devices). You ask it to encrypt/decrypt; the key never leaves the secure hardware. Even <code>adb root</code> can't pull it.</p>
+    </div>
+    <div class="card">
+      <h4>Jetpack Security</h4>
+      <p>A wrapper that gives you two friendly APIs on top of Keystore: <code>EncryptedSharedPreferences</code> (encrypted key-value prefs) and <code>EncryptedFile</code> (encrypted file I/O). The keys it uses live in Keystore.</p>
+    </div>
+  </div>
+
+  <p>You won't see Keystore directly in your code — you'll use Jetpack Security and trust it to wire Keystore underneath.</p>
+
+  <h3>What to encrypt</h3>
+  <p>The honest answer: for a recipe app, very little is actually sensitive. The portfolio answer: pick a clean, narrow surface so you show the API without over-engineering.</p>
+  <ul>
+    <li><b>The biometric-lock setting</b> (a boolean in <code>EncryptedSharedPreferences</code>) — small, isolated, demonstrates the prefs API.</li>
+    <li><b>An optional "private notes" field per recipe</b>, stored as an <code>EncryptedFile</code> in <code>filesDir/private_notes/&lt;recipe-id&gt;.enc</code> — demonstrates the file API and gives "locked" recipes a meaningful payload to protect.</li>
+  </ul>
+
+  <h3>Dependency and use</h3>
+  <div class="code">
+    <div class="head"><span>app/build.gradle.kts</span><span class="lang">kotlin</span></div>
+<pre><span class="com">// stable; older but well-documented</span>
+implementation(<span class="str">"androidx.security:security-crypto:1.0.0"</span>)</pre>
+  </div>
+  <div class="code">
+    <div class="head"><span>SecurePrefs.kt</span><span class="lang">kotlin</span></div>
+<pre><span class="kw">val</span> masterKey = <span class="ty">MasterKey</span>.<span class="ty">Builder</span>(context)
+    .setKeyScheme(<span class="ty">MasterKey</span>.<span class="ty">KeyScheme</span>.<span class="ty">AES256_GCM</span>)
+    .build()
+
+<span class="kw">val</span> prefs = <span class="ty">EncryptedSharedPreferences</span>.create(
+    context,
+    <span class="str">"secure_prefs"</span>,
+    masterKey,
+    <span class="ty">EncryptedSharedPreferences</span>.<span class="ty">PrefKeyEncryptionScheme</span>.<span class="ty">AES256_SIV</span>,
+    <span class="ty">EncryptedSharedPreferences</span>.<span class="ty">PrefValueEncryptionScheme</span>.<span class="ty">AES256_GCM</span>,
+)</pre>
+  </div>
+
+  <div class="callout warning">
+    <div class="label">Heads-up on library state</div>
+    <p><code>androidx.security:security-crypto:1.0.0</code> is the stable release everyone uses. The <code>1.1.0-alpha</code> line has been alpha for a long time and Google has signaled the library is in maintenance. For a portfolio that's <b>fine</b> — use 1.0.0, note in your README that you're aware of the situation, and that for a greenfield production project you'd evaluate <a href="https://developers.google.com/tink">Tink</a> directly. Showing that you read past the first page of docs is the point.</p>
+  </div>
+
+  <h3>Where it plugs in</h3>
+  <ul>
+    <li>Hilt module providing a <code>@Singleton</code> <code>SecurePreferenceStore</code> wrapping <code>EncryptedSharedPreferences</code>.</li>
+    <li>Settings repo writes the biometric-lock flag here instead of plain <code>SharedPreferences</code> / DataStore.</li>
+    <li>The "private notes" feature, if you build it: a small <code>PrivateNotesRepository</code> that takes a recipe ID and uses <code>EncryptedFile</code> for read/write.</li>
+  </ul>
+
+  <div class="callout">
+    <div class="label">Why not encrypt the whole Room database?</div>
+    <p>You can — via SQLCipher integration (<code>net.zetetic:android-database-sqlcipher</code> + <code>SupportFactory</code> with a passphrase). It's a heavier lift and the wrapper has its own opinions. For a portfolio piece on a recipe app, encrypting an opt-in private-notes file is more proportionate to the threat model and easier to explain in an interview ("I encrypt the data the user has marked private, not their entire library").</p>
+  </div>
+</section>
+
+<section id="integrity">
+  <h2>3 · Play Integrity API <span class="pill info"><span class="dot"></span>half to full day</span></h2>
+  <p>Google's anti-tampering / anti-cheat service. It replaced the older <b>SafetyNet Attestation</b> API in 2024. Conceptually, it lets your app ask Google "am I really running where I claim to be running, on a real device, as a non-tampered build?" — and get back a signed token with the verdict.</p>
+
+  <div class="figure">
+    <svg viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L9,3 z" fill="#5b5b58"/>
+        </marker>
+      </defs>
+      <rect x="20" y="60" width="140" height="80" rx="4" fill="#e0f2fe" stroke="#0369a1"/>
+      <text x="90" y="90" text-anchor="middle" font-family="system-ui" font-size="13" font-weight="600" fill="#0369a1">Your app</text>
+      <text x="90" y="108" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#5b5b58">requestIntegrityToken</text>
+      <text x="90" y="124" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#5b5b58">(nonce)</text>
+
+      <rect x="250" y="60" width="140" height="80" rx="4" fill="#fafaf7" stroke="#5b5b58"/>
+      <text x="320" y="90" text-anchor="middle" font-family="system-ui" font-size="13" font-weight="600" fill="#1a1a1a">Play Services</text>
+      <text x="320" y="108" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#5b5b58">signs verdict JWT</text>
+
+      <rect x="480" y="60" width="140" height="80" rx="4" fill="#fafaf7" stroke="#5b5b58"/>
+      <text x="550" y="86" text-anchor="middle" font-family="system-ui" font-size="13" font-weight="600" fill="#1a1a1a">Verdict</text>
+      <text x="550" y="104" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#5b5b58">app + device +</text>
+      <text x="550" y="118" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#5b5b58">licensing</text>
+
+      <line x1="160" y1="100" x2="245" y2="100" stroke="#5b5b58" marker-end="url(#arr)"/>
+      <line x1="390" y1="100" x2="475" y2="100" stroke="#5b5b58" marker-end="url(#arr)"/>
+    </svg>
+    <div class="cap">The token comes back signed. You either verify the signature server-side (typical) or parse the verdict locally as best-effort (acceptable for a local-only app — declare this trade-off honestly).</div>
+  </div>
+
+  <h3>What the verdict actually contains</h3>
+  <ul>
+    <li><code>appRecognitionVerdict</code> — <code>PLAY_RECOGNIZED</code> (the build matches a Play release), <code>UNRECOGNIZED_VERSION</code> (modified APK, sideloaded), <code>UNEVALUATED</code> (couldn't check).</li>
+    <li><code>deviceRecognitionVerdict</code> — set of labels: <code>MEETS_DEVICE_INTEGRITY</code>, <code>MEETS_BASIC_INTEGRITY</code>, <code>MEETS_STRONG_INTEGRITY</code>. A rooted phone fails the first two.</li>
+    <li><code>appLicensingVerdict</code> — <code>LICENSED</code> if the user got the app from Play, <code>UNLICENSED</code> otherwise.</li>
+  </ul>
+
+  <h3>For this app: soft-fail</h3>
+  <p>The architecturally honest move for a local-only app is <b>soft-fail</b>: call Integrity once on launch, log/store the verdict, and if it's bad show a non-blocking warning ("This device looks tampered — some features may be unavailable"). Don't refuse to run. Reasons:</p>
+  <ul>
+    <li>No backend means you can't verify the token signature server-side, so you're trusting the local response — bricking on a partially-trusted check is bad UX.</li>
+    <li>False positives on legitimate devices (custom ROMs, work profiles) are real and annoying.</li>
+    <li>Quota limits matter — 5,000 standard requests/day per Play project on the free tier.</li>
+  </ul>
+
+  <h3>Wiring</h3>
+  <div class="code">
+    <div class="head"><span>app/build.gradle.kts</span><span class="lang">kotlin</span></div>
+<pre>implementation(<span class="str">"com.google.android.play:integrity:1.4.0"</span>)</pre>
+  </div>
+  <div class="code">
+    <div class="head"><span>IntegrityCheck.kt</span><span class="lang">kotlin</span></div>
+<pre><span class="kw">suspend fun</span> <span class="fn">checkIntegrity</span>(context: <span class="ty">Context</span>): <span class="ty">IntegrityVerdict</span> {
+    <span class="kw">val</span> manager = <span class="ty">IntegrityManagerFactory</span>.create(context)
+    <span class="kw">val</span> nonce = <span class="ty">UUID</span>.randomUUID().toString()
+    <span class="kw">val</span> token = manager
+        .requestIntegrityToken(<span class="ty">IntegrityTokenRequest</span>.builder().setNonce(nonce).build())
+        .await()
+        .token()
+    <span class="kw">return</span> parseVerdict(token)
+}</pre>
+  </div>
+
+  <div class="callout warning">
+    <div class="label">Setup, not just code</div>
+    <p>Integrity requires registration in Play Console under <b>App integrity → Integrity API</b>. You'll get a project number and need to opt the app in. Without that step the API returns errors. You can use the <b>standard requests</b> path with a real Play Console (internal test track is enough) without needing a backend.</p>
+  </div>
+  <div class="callout warning">
+    <div class="label">Gotcha</div>
+    <p>You won't get meaningful verdicts from an Android Studio "run" install — it's not Play-installed and not signed with the upload key. Test on an internal-track install from Play Console. Plan a half-day for the Play Console setup the first time you do it.</p>
+  </div>
+</section>
+
+<section id="backup">
+  <h2>4 · Scoped backup rules <span class="pill info"><span class="dot"></span>1–2 hours</span></h2>
+  <p>Android Auto Backup will, by default, sync your app's data directory to the user's Google Drive (up to 25MB per app). That's mostly good — when they reinstall on a new phone they get their recipes back. But you want explicit control over what's included and what isn't. Backup rules are how you do that.</p>
+
+  <h3>Two files, two scenarios</h3>
+  <table class="tradeoff">
+    <thead><tr><th>File</th><th>When it applies</th><th>What it controls</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="label">backup_rules.xml</td>
+        <td>Android 11 and below</td>
+        <td>Auto-backup to Drive (the classic flow).</td>
+      </tr>
+      <tr>
+        <td class="label">data_extraction_rules.xml</td>
+        <td>Android 12+</td>
+        <td>Separate rule sets for <code>cloud-backup</code> (Drive) and <code>device-transfer</code> (new "switch phones" flow).</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>Both files go in <code>app/src/main/res/xml/</code>. Wire them up in <code>AndroidManifest.xml</code>:</p>
+  <div class="code">
+    <div class="head"><span>AndroidManifest.xml</span><span class="lang">xml</span></div>
+<pre>&lt;application
+    android:fullBackupContent=<span class="str">"@xml/backup_rules"</span>
+    android:dataExtractionRules=<span class="str">"@xml/data_extraction_rules"</span>
+    …&gt;</pre>
+  </div>
+
+  <h3>Reasonable rules for this app</h3>
+  <div class="code">
+    <div class="head"><span>res/xml/data_extraction_rules.xml</span><span class="lang">xml</span></div>
+<pre>&lt;?xml version=<span class="str">"1.0"</span> encoding=<span class="str">"utf-8"</span>?&gt;
+&lt;data-extraction-rules&gt;
+    &lt;cloud-backup&gt;
+        <span class="com">&lt;!-- INCLUDE: user content the user wants on a new phone --&gt;</span>
+        &lt;include domain=<span class="str">"database"</span> path=<span class="str">"recipe_db"</span>/&gt;
+        &lt;include domain=<span class="str">"file"</span> path=<span class="str">"recipe_photos/"</span>/&gt;
+        &lt;include domain=<span class="str">"sharedpref"</span> path=<span class="str">"display_settings.xml"</span>/&gt;
+
+        <span class="com">&lt;!-- EXCLUDE: keystore-bound prefs (key handles don't migrate), transient OCR temp dir --&gt;</span>
+        &lt;exclude domain=<span class="str">"sharedpref"</span> path=<span class="str">"secure_prefs"</span>/&gt;
+        &lt;exclude domain=<span class="str">"file"</span> path=<span class="str">"ocr_captures/"</span>/&gt;
+        &lt;exclude domain=<span class="str">"file"</span> path=<span class="str">"private_notes/"</span>/&gt;
+    &lt;/cloud-backup&gt;
+    &lt;device-transfer&gt;
+        <span class="com">&lt;!-- device-transfer can include more, since both endpoints are trusted --&gt;</span>
+        &lt;include domain=<span class="str">"database"</span> path=<span class="str">"recipe_db"</span>/&gt;
+        &lt;include domain=<span class="str">"file"</span> path=<span class="str">"recipe_photos/"</span>/&gt;
+        &lt;exclude domain=<span class="str">"file"</span> path=<span class="str">"ocr_captures/"</span>/&gt;
+    &lt;/device-transfer&gt;
+&lt;/data-extraction-rules&gt;</pre>
+  </div>
+
+  <p>Why each choice:</p>
+  <ul>
+    <li><b>Include the Room DB</b> — that's the actual recipe library. The reason this feature exists.</li>
+    <li><b>Include photo files</b> — recipes without photos on the new phone are sad.</li>
+    <li><b>Exclude <code>secure_prefs</code></b> — it's encrypted with a Keystore key that's bound to <i>this</i> device. The ciphertext can't be decrypted on a different device anyway, so syncing it is just confusing.</li>
+    <li><b>Exclude <code>ocr_captures/</code></b> — transient working files. Pure noise in a backup.</li>
+    <li><b>Exclude <code>private_notes/</code></b> for cloud backup, same Keystore-binding reason. (You could include them in device-transfer, since modern transfers use a more secure channel, but for v0.5.0 just exclude both.)</li>
+  </ul>
+
+  <div class="callout warning">
+    <div class="label">Gotcha</div>
+    <p>Test backup by hand — don't trust that "it'll work in prod." Trigger a manual backup from adb:</p>
+    <div class="code" style="margin: 8px 0;">
+      <div class="head"><span>shell</span><span class="lang">bash</span></div>
+<pre>adb shell bmgr backupnow io.github.chwi.recipecalculator
+adb shell bmgr list transports
+adb shell bmgr restore &lt;token&gt; io.github.chwi.recipecalculator</pre>
+    </div>
+    <p>The exclusions don't apply retroactively to backups already in Drive, so test before you publish.</p>
+  </div>
+</section>
+
+<section id="order">
+  <h2>Suggested build order</h2>
+  <p>Smallest piece first, biggest piece last. Each step is a clean separate commit.</p>
+
+  <ol class="steplist">
+    <li>
+      <b>Backup rules</b> <span class="meta">~1–2h</span>
+      <p>Pure XML. Gets you into the security headspace. No new dependency. Test with <code>bmgr backupnow</code>.</p>
+    </li>
+    <li>
+      <b>Biometric app lock</b> <span class="meta">~half day</span>
+      <p>Most visible piece — easy to demo in a screen recording for the portfolio. Add the Settings toggle, the lifecycle gate, the locked overlay. Optionally the per-recipe lock + Room migration v2.</p>
+    </li>
+    <li>
+      <b>Encryption (EncryptedSharedPreferences)</b> <span class="meta">~half day</span>
+      <p>Move the biometric-lock flag (and any other small sensitive prefs) into <code>secure_prefs</code>. Wire a Hilt provider. Optional: the private-notes file feature as a second example of the API.</p>
+    </li>
+    <li>
+      <b>Play Integrity (soft-fail)</b> <span class="meta">~half to full day</span>
+      <p>Last because it requires Play Console registration. Add a one-shot Integrity check on launch, store the verdict, surface a warning banner if it's bad. Document the soft-fail choice in the README.</p>
+    </li>
+  </ol>
+
+  <p>If you only have one day, do steps 1 + 2 and ship as <code>v0.4.1</code>. Steps 3 + 4 can land as <code>v0.5.0</code> a week later. Don't bundle.</p>
+</section>
+
+<section id="portfolio">
+  <h2>Portfolio framing</h2>
+  <p>The most common mistake on portfolio security work is shipping all four features but writing them up as "I added X, Y, Z." That reads like a Codelab. The version that reads like a senior engineer:</p>
+
+  <div class="callout success">
+    <div class="label">README pattern that works</div>
+    <p>For each control, name the <b>threat</b> it addresses, the <b>scope</b> you chose (and what you deliberately didn't do), and any <b>known limitation</b>. E.g. for Integrity: <i>"Soft-fail by design — the app is local-only and there is no backend to verify the token signature against Google's public keys. A production deployment with sensitive operations would verify server-side and refuse to operate on a bad verdict."</i> That single sentence demonstrates more judgement than the code change does.</p>
+  </div>
+
+  <p>Three things to call out in an interview, in your own words:</p>
+  <ul>
+    <li><b>Why <code>BIOMETRIC_STRONG or DEVICE_CREDENTIAL</code></b> — covers users without enrolled biometrics, gives a clean PIN/pattern fallback, satisfies the "strong" classification for Keystore key auth-bound usage if you ever extend that way.</li>
+    <li><b>Why <code>EncryptedSharedPreferences</code> for a narrow surface, not whole-DB SQLCipher</b> — proportionality to threat model, lower dep weight, easier to reason about.</li>
+    <li><b>Why soft-fail Integrity</b> — no backend to verify against, false positives on legit devices, UX of bricking on a partially-trusted check is worse than degrading gracefully.</li>
+  </ul>
+
+  <p>Each of these is a small judgement call. Stringing the three of them together is what makes the work look senior.</p>
+</section>
+
+</main>
+
+<script>
+  const links = document.querySelectorAll('aside.toc a');
+  const sections = Array.from(document.querySelectorAll('main > section'));
+  const byId = Object.fromEntries(links.entries() ? Array.from(links).map(a => [a.getAttribute('href').slice(1), a]) : []);
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const id = entry.target.id;
+      const link = byId[id];
+      if (!link) return;
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-30% 0px -60% 0px', threshold: 0 });
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
