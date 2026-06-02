@@ -33,6 +33,25 @@ android {
             )
         }
     }
+
+    // Product flavors split the app into two distributions:
+    //  - `play`      → what ships to Play Store (clean, no biometric / security-crypto / integrity)
+    //  - `portfolio` → showcase build carrying the Phase 4 security stack
+    // Both share `src/main/`; flavor-specific sources live under `src/play/` and `src/portfolio/`.
+    // The flavor seam is the security interfaces in `core/security`: each flavor binds its own
+    // impl via a flavor-local Hilt `SecurityModule`.
+    flavorDimensions += "audience"
+    productFlavors {
+        create("play") {
+            dimension = "audience"
+            // keeps applicationId = io.github.chwi.recipecalculator (the Play Store identity)
+        }
+        create("portfolio") {
+            dimension = "audience"
+            applicationIdSuffix = ".portfolio"
+            versionNameSuffix = "-portfolio"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11

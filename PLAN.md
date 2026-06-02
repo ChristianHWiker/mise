@@ -75,11 +75,31 @@ screen with editable parsed rows → save as a recipe.
 - **Handoff:** `CaptureHandoff` singleton seeds the existing `RecipeEditor` from parsed rows;
   Confirm screen shows "needs review" badges for low-confidence rows; Home has a camera-FAB.
 
-### Phase 4 — Security & hardening · planned
+### Phase 3.5 — Flavor split (`play` / `portfolio`) · ✅ scaffolded
+Gradle product flavors so the Play Store release stays lean while the portfolio build carries
+the Phase 4 security stack. Same git history, same tags, same bugfixes — two APKs.
+- **`play`** keeps `applicationId = io.github.chwi.recipecalculator`; ships to Play Store.
+- **`portfolio`** uses `applicationIdSuffix = ".portfolio"` + `versionNameSuffix = "-portfolio"`
+  so both APKs install side-by-side on the same phone.
+- **Flavor seam:** three interfaces under `core/security/` (`AppLockController`,
+  `SecurePreferenceStore`, `IntegrityChecker`). Each flavor's source set
+  (`src/play/`, `src/portfolio/`) provides a `SecurityModule` with @Binds to its own impl —
+  same module name, same package, different source sets, only one compiles per variant.
+  UI code injects the interface and never branches on `BuildConfig.FLAVOR`.
+- **Current state:** play has no-op impls; portfolio has stubs with the same no-op behavior
+  but distinct class names (`BiometricAppLockController`, `EncryptedSecurePreferenceStore`,
+  `PlayIntegrityChecker`) marking where Phase 4 lands the real impls.
+- **Done when:** `./gradlew :app:assemblePlayDebug :app:assemblePortfolioDebug` both succeed
+  and both test suites pass. ✓
+
+### Phase 4 — Security & hardening (`portfolio` flavor) · planned
 Biometric app lock (AndroidX Biometric), Keystore-backed encryption for lockable recipes / sensitive
-prefs (Jetpack Security), Play Integrity attestation on launch (soft-fail), scoped backup rules.
+prefs (Jetpack Security), Play Integrity attestation on launch (soft-fail). All deps land via
+`portfolioImplementation` so the `play` APK stays clean. Scoped backup rules go in `main/` —
+they're useful in both flavors and have zero dep cost.
 Directly targets the job listing's bonus criteria. Test on a physical device.
-**Done when:** app locks behind biometrics; sensitive data encrypted at rest; failed Integrity verdict handled gracefully.
+**Done when:** portfolio flavor has all four controls; play flavor still builds without any
+of the security deps; failed Integrity verdict handled gracefully.
 
 ### Phase 5 — Polish & launch · planned
 Onboarding, settings defaults, app icon + splash + store assets, signed AAB, privacy policy,
