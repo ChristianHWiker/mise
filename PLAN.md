@@ -4,7 +4,7 @@ This is the **living roadmap** (the *how/when*). `spec.html` remains the product
 The phase numbering here reflects the **actual build order** and is aligned with the git tags, so it
 intentionally diverges from the original 7-phase list in `spec.html` (see "Divergence" note below).
 
-## Current state — `v0.4.0` shipped · Phase 4 (security & hardening) next
+## Current state — `v0.5.0` shipped · Phase 5 (polish & launch) next
 A usable single-user recipe app: open onto a seeded recipe, browse/search/filter the library,
 scale forward (yield) and backward (limiting ingredient), **create / edit / delete recipes**,
 and **photograph a printed recipe to seed the editor** via on-device OCR. Structured ingredient
@@ -92,14 +92,27 @@ the Phase 4 security stack. Same git history, same tags, same bugfixes — two A
 - **Done when:** `./gradlew :app:assemblePlayDebug :app:assemblePortfolioDebug` both succeed
   and both test suites pass. ✓
 
-### Phase 4 — Security & hardening (`portfolio` flavor) · planned
-Biometric app lock (AndroidX Biometric), Keystore-backed encryption for lockable recipes / sensitive
-prefs (Jetpack Security), Play Integrity attestation on launch (soft-fail). All deps land via
-`portfolioImplementation` so the `play` APK stays clean. Scoped backup rules go in `main/` —
-they're useful in both flavors and have zero dep cost.
-Directly targets the job listing's bonus criteria. Test on a physical device.
-**Done when:** portfolio flavor has all four controls; play flavor still builds without any
-of the security deps; failed Integrity verdict handled gracefully.
+### Phase 4 — Security & hardening (`portfolio` flavor) · ✅ done (`v0.5.0`)
+All four controls shipped:
+- **Scoped backup rules** (`main/res/xml/{backup_rules,data_extraction_rules}.xml`): include the
+  Room DB + photo files + display settings; exclude `secure_prefs` (device-bound Keystore
+  ciphertext) and `ocr_captures/` (transient working set). Applies to both flavors.
+- **Biometric app lock** (portfolio): real `BiometricAppLockController` over
+  `androidx.biometric.BiometricPrompt` with `BIOMETRIC_STRONG | DEVICE_CREDENTIAL`; toggle
+  persists via `SecurePreferenceStore`; Settings shows a "Lock app with biometrics" row only
+  when `isAvailable()`. `MainActivity` now extends `FragmentActivity`; a `LockGate` Composable
+  wraps the nav host; `ProcessLifecycleOwner` re-arms the lock on backgrounding.
+- **Encrypted prefs** (portfolio): `EncryptedSecurePreferenceStore` over
+  `androidx.security.crypto:1.0.0` (stable; the 1.1.0-alpha line has stayed alpha for years
+  and the lib is in maintenance mode — documented in the source). Backs the biometric-lock
+  flag and is the canonical place to land any future sensitive setting.
+- **Play Integrity** (portfolio): `PlayIntegrityChecker` calls `IntegrityManagerFactory.create`
+  classic API on launch; soft-fail by design (no backend to decrypt the token, so a successful
+  call is treated as `Trusted` and any error as `Unknown` — `Untrusted` is structurally
+  unreachable without server-side verification). `IntegrityWarningBanner` wired above the
+  nav host shows on `Untrusted` only (UI is in place for a future backend upgrade).
+
+Play APK has none of the security deps; portfolio APK has them all via `portfolioImplementation`.
 
 ### Phase 5 — Polish & launch · planned
 Onboarding, settings defaults, app icon + splash + store assets, signed AAB, privacy policy,

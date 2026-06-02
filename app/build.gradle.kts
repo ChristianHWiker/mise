@@ -110,6 +110,18 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.mlkit.text.recognition)
 
+    // FragmentActivity is required by the biometric prompt in the portfolio flavor; shared
+    // because MainActivity lives in main/ and inheriting from FragmentActivity must compile
+    // for both flavors. The play APK pulls fragment-ktx but never uses it.
+    implementation(libs.androidx.fragment.ktx)
+
+    // Phase 4 — portfolio-only security stack (biometric lock, encrypted prefs, Integrity).
+    // The play APK is built without any of these on the classpath.
+    "portfolioImplementation"(libs.androidx.security.crypto)
+    "portfolioImplementation"(libs.androidx.biometric)
+    "portfolioImplementation"(libs.androidx.lifecycle.process)
+    "portfolioImplementation"(libs.play.integrity)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.turbine)

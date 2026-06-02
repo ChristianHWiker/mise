@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +45,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val biometricLockEnabled by viewModel.biometricLockEnabled.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -83,6 +85,19 @@ fun SettingsScreen(
                     label = system.displayName(),
                     selected = settings.unitSystem == system,
                     onClick = { viewModel.setUnitSystem(system) },
+                )
+            }
+        }
+
+        // Security group is only present in the portfolio flavor — in play, biometricLockAvailable
+        // is hardwired to false by NoOpAppLockController and the whole section collapses out.
+        if (viewModel.biometricLockAvailable) {
+            Spacer(Modifier.height(RecipeTheme.spacing.huge))
+            SettingGroup(label = "Security") {
+                ToggleRow(
+                    label = "Lock app with biometrics",
+                    checked = biometricLockEnabled,
+                    onCheckedChange = viewModel::setBiometricLockEnabled,
                 )
             }
         }
@@ -130,6 +145,26 @@ private fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
                 modifier = Modifier.size(18.dp),
             )
         }
+    }
+    HorizontalDivider(color = RecipeTheme.colors.rule)
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = RecipeTheme.spacing.xl),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = RecipeTheme.typography.body,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
     HorizontalDivider(color = RecipeTheme.colors.rule)
 }

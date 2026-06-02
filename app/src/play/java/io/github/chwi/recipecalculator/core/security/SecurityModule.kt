@@ -22,4 +22,7 @@ abstract class SecurityModule {
 
     @Binds
     abstract fun bindIntegrityChecker(impl: NoOpIntegrityChecker): IntegrityChecker
+
+    @Binds
+    abstract fun bindAppBackgroundObserver(impl: NoOpAppBackgroundObserver): AppBackgroundObserver
 }

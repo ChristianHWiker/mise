@@ -1,19 +1,30 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ backup rules. Two sections:
+    cloud-backup    — what's allowed to leave the device (Google Drive auto-backup)
+    device-transfer — what's allowed during direct phone-to-phone migration
+  Device transfer is a more trusted channel (both endpoints are the user's own devices),
+  so it can carry slightly more than cloud backup.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="database" path="recipe.db"/>
+        <include domain="file" path="recipe_photos/"/>
+        <include domain="sharedpref" path="settings.xml"/>
+
+        <!-- Keystore-bound ciphertext can't be decrypted on a different device, so excluded. -->
+        <exclude domain="sharedpref" path="secure_prefs.xml"/>
+        <!-- OCR captures are transient working files; no reason to ship them to Drive. -->
+        <exclude domain="file" path="ocr_captures/"/>
     </cloud-backup>
-    <!--
+
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="database" path="recipe.db"/>
+        <include domain="file" path="recipe_photos/"/>
+        <include domain="sharedpref" path="settings.xml"/>
+
+        <!-- Same rationale as cloud-backup for secure_prefs (Keystore key is per-device). -->
+        <exclude domain="sharedpref" path="secure_prefs.xml"/>
+        <exclude domain="file" path="ocr_captures/"/>
     </device-transfer>
-    -->
 </data-extraction-rules>

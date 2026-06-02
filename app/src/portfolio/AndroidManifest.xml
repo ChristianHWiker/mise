@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Portfolio-flavor manifest. The merger combines this with src/main/AndroidManifest.xml at
+  build time, so only flavor-specific additions go here. USE_BIOMETRIC unlocks the BiometricPrompt
+  used by BiometricAppLockController; the play flavor doesn't ship the biometric library and so
+  doesn't declare the permission.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+</manifest>

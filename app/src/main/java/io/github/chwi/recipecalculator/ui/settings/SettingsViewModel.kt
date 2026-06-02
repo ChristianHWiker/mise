@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.chwi.recipecalculator.core.rational.FractionStyle
+import io.github.chwi.recipecalculator.core.security.AppLockController
 import io.github.chwi.recipecalculator.core.units.UnitSystem
 import io.github.chwi.recipecalculator.data.settings.AppSettings
 import io.github.chwi.recipecalculator.data.settings.SettingsRepository
@@ -17,6 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
+    private val appLock: AppLockController,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = repository.settings.stateIn(
@@ -25,11 +27,21 @@ class SettingsViewModel @Inject constructor(
         initialValue = AppSettings(),
     )
 
+    /** Whether this build + device supports the biometric lock; false in the play flavor. */
+    val biometricLockAvailable: Boolean = appLock.isAvailable()
+
+    /** Toggle state, sourced from secure storage. Always false in play. */
+    val biometricLockEnabled: StateFlow<Boolean> = appLock.isLockEnabled
+
     fun setFractionStyle(style: FractionStyle) {
         viewModelScope.launch { repository.setFractionStyle(style) }
     }
 
     fun setUnitSystem(system: UnitSystem) {
         viewModelScope.launch { repository.setUnitSystem(system) }
+    }
+
+    fun setBiometricLockEnabled(enabled: Boolean) {
+        viewModelScope.launch { appLock.setLockEnabled(enabled) }
     }
 }

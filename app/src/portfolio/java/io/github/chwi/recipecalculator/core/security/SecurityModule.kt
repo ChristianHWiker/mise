@@ -21,4 +21,7 @@ abstract class SecurityModule {
 
     @Binds
     abstract fun bindIntegrityChecker(impl: PlayIntegrityChecker): IntegrityChecker
+
+    @Binds
+    abstract fun bindAppBackgroundObserver(impl: ProcessAppBackgroundObserver): AppBackgroundObserver
 }
