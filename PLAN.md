@@ -4,18 +4,12 @@ This is the **living roadmap** (the *how/when*). `spec.html` remains the product
 The phase numbering here reflects the **actual build order** and is aligned with the git tags, so it
 intentionally diverges from the original 7-phase list in `spec.html` (see "Divergence" note below).
 
-## Current state — `v0.3.0` shipped · Phase 3 (OCR) in progress
+## Current state — `v0.4.0` shipped · Phase 4 (security & hardening) next
 A usable single-user recipe app: open onto a seeded recipe, browse/search/filter the library,
-scale forward (yield) and backward (limiting ingredient), and **create / edit / delete recipes**
-with structured ingredient + step editors, drag-to-reorder, density-aware metric conversion,
-free-form tags, and a photo picker. Fraction style + unit system are flipped in Settings.
-
-**Phase 3 scaffolding is on `main`** (not tagged yet) — CameraX + ML Kit + parser + Capture/Confirm
-screens + Editor seeding — but the parser is mid-tuning against real-world OCR output. The first
-real device test (web recipe page) returned 38 OCR lines for ~6 ingredients; a `refineForIngredients`
-filter + sentence-boundary name trim is in place and unit-tested against that snapshot, but **not
-yet verified on the Pixel**. Next session needs an end-to-end device test before claiming Phase 3
-done. See [[phase_3_ocr_state]] in memory for the running notes.
+scale forward (yield) and backward (limiting ingredient), **create / edit / delete recipes**,
+and **photograph a printed recipe to seed the editor** via on-device OCR. Structured ingredient
++ step editors with drag-to-reorder, density-aware metric conversion, free-form tags, photo
+picker. Fraction style + unit system are flipped in Settings.
 
 - Package `io.github.chwi.recipecalculator` · single-activity · MVVM + Flow + Hilt + Room.
 - Resolved stack: AGP 9.2.1 · Gradle 9.4.1 · Kotlin 2.2.10 · compileSdk 36.1 / minSdk 24 ·
@@ -65,17 +59,21 @@ The editor that turns the read-only app into a usable single-user cookbook. Ship
 - **Detail edit affordance**: previously-orphaned `onEdit` callback now wired via a top-bar overflow
   → "Edit recipe"; the editor's overflow holds "Delete recipe" with a confirmation dialog.
 
-### Phase 3 — OCR capture (camera) · ▶ in progress
-The headline differentiator for the job market. CameraX capture → ML Kit on-device text recognition →
-ingredient-line parser (regex + heuristics) → confirmation screen with editable parsed rows → save as a recipe.
-- **Shipped (not tagged):** CameraX capture screen + gallery-picker fallback, ML Kit Latin recognizer
-  wrapped behind `OcrService`, `core/parser/IngredientParser` (parse + refine + name-trim) with 25
-  unit tests, `CaptureHandoff` singleton that seeds the existing `RecipeEditor` from parsed rows,
-  Confirm screen with "needs review" badges, Home camera-FAB, debug `Log.d("RecipeOcr", …)` of raw
-  ML Kit output + post-refine rows for tuning.
-- **Open:** real-device verification (gallery + camera paths), parser fixes against a wider corpus
-  once we see more failure modes, then strip the debug logging.
-**Done when:** photograph a printed ingredient list, fix mis-parses inline, save as a new recipe.
+### Phase 3 — OCR capture (camera) · ✅ done (`v0.4.0`)
+The headline differentiator for the job market. CameraX capture → user zoom + post-capture crop →
+ML Kit on-device text recognition → ingredient-line parser (regex + heuristics) → confirmation
+screen with editable parsed rows → save as a recipe.
+- **Capture path:** CameraX live preview with pinch-to-zoom, gallery-picker fallback, post-capture
+  crop step before OCR (isolating the ingredient block was the load-bearing UX choice — beats
+  filtering page chrome out of the OCR result downstream).
+- **OCR:** ML Kit Latin recognizer wrapped behind `OcrService`.
+- **Parser** (`core/parser/IngredientParser`): rational-quantity-aware line parser plus a
+  `refineForIngredients` pass that drops non-ingredient noise, trims long descriptive tails at
+  sentence boundaries, and recovers common OCR misreads (☐ checkbox hallucinated as `D`/`U`/`O`,
+  metric `g` misread as `9` in dual metric/imperial pairs, dropped-numerator fractions). 45
+  unit tests including a verbatim Pixel-capture snapshot.
+- **Handoff:** `CaptureHandoff` singleton seeds the existing `RecipeEditor` from parsed rows;
+  Confirm screen shows "needs review" badges for low-confidence rows; Home has a camera-FAB.
 
 ### Phase 4 — Security & hardening · planned
 Biometric app lock (AndroidX Biometric), Keystore-backed encryption for lockable recipes / sensitive

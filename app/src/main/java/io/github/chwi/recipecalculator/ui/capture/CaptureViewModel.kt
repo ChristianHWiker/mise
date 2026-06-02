@@ -2,7 +2,6 @@ package io.github.chwi.recipecalculator.ui.capture
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -86,16 +85,7 @@ class CaptureViewModel @Inject constructor(
     private suspend fun recognize(uri: Uri) {
         try {
             val result = ocr.recognizeText(uri)
-            val rawParsed = parseIngredientBlock(result.lines.joinToString("\n"))
-            val parsed = refineForIngredients(rawParsed)
-            Log.d(TAG, "── parser raw (${rawParsed.size} rows) → refined (${parsed.size} rows) ──")
-            parsed.forEachIndexed { idx, p ->
-                Log.d(
-                    TAG,
-                    "  [$idx] qty=${p.qty} unit=${p.unit} name='${p.name}' " +
-                        "mod='${p.modifier ?: ""}' conf=${p.confidence} raw='${p.rawText}'",
-                )
-            }
+            val parsed = refineForIngredients(parseIngredientBlock(result.lines.joinToString("\n")))
             _state.update {
                 it.copy(
                     stage = if (parsed.isEmpty()) {
@@ -147,9 +137,5 @@ class CaptureViewModel @Inject constructor(
     fun newCaptureFile(): File {
         val dir = File(context.filesDir, "ocr_captures").apply { mkdirs() }
         return File(dir, "capture-${System.currentTimeMillis()}.jpg")
-    }
-
-    private companion object {
-        const val TAG = "RecipeOcr"
     }
 }

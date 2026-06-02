@@ -2,7 +2,6 @@ package io.github.chwi.recipecalculator.data.ocr
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
@@ -53,17 +52,6 @@ class MlKitOcrService @Inject constructor(
         // Each Block contains Lines in reading order — flatten and keep their text verbatim.
         val lines = visionText.textBlocks.flatMap { block -> block.lines.map { it.text } }
 
-        // Phase-3 debugging: dump everything ML Kit returned so we can see exactly what shape the
-        // parser receives on real photos. Strip once the parser is tuned to actual OCR output.
-        Log.d(TAG, "── raw OCR (${visionText.textBlocks.size} blocks, ${lines.size} lines) ──")
-        visionText.textBlocks.forEachIndexed { bIdx, block ->
-            Log.d(TAG, "  block[$bIdx]:")
-            block.lines.forEachIndexed { lIdx, line ->
-                Log.d(TAG, "    line[$lIdx]: ${line.text}")
-            }
-        }
-        Log.d(TAG, "── full text ──\n${visionText.text}")
-
         // ML Kit doesn't surface per-element confidence on the public API in stable releases,
         // so we approximate: lines that look ingredient-shaped (digits + a letter) get full
         // credit, others half. The parser does the heavy lifting downstream anyway.
@@ -73,9 +61,5 @@ class MlKitOcrService @Inject constructor(
         }
 
         OcrResult(lines = lines, confidence = signal)
-    }
-
-    private companion object {
-        const val TAG = "RecipeOcr"
     }
 }
