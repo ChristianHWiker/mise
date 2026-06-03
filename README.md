@@ -158,7 +158,8 @@ app/src/main/java/io/github/chwi/recipecalculator/
 
 ## License
 
-All rights reserved (see [LICENSE](LICENSE))
+© 2026 Christian Hagen Wiker. **All rights reserved.** This source is published for
+portfolio review only and is **not** licensed for reuse — see [LICENSE](LICENSE).
 
 ---
 
