@@ -40,14 +40,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import io.github.chwi.recipecalculator.ui.theme.RecipeTheme
 import io.github.chwi.recipecalculator.ui.theme.SerifFamily
 
@@ -80,7 +83,7 @@ fun RecipeDetailScreen(
                     onEdit = { if (state.recipeId > 0) onEdit(state.recipeId) },
                 )
             }
-            item { HeroPhoto() }
+            item { HeroPhoto(state.photoUri) }
             item { TitleBlock(state.category, state.title, state.metaLine) }
             item {
                 ServingsCard(
@@ -184,18 +187,28 @@ private fun DetailTopBar(
 }
 
 @Composable
-private fun HeroPhoto() {
+private fun HeroPhoto(photoUri: String?) {
+    val shape = RoundedCornerShape(RecipeTheme.radii.hairlineCard)
+    val warmGradient = Brush.linearGradient(listOf(Color(0xFFCD9C70), Color(0xFF6B3E22)))
     Box(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = RecipeTheme.spacing.xxl)
             .padding(top = RecipeTheme.spacing.xs)
             .height(220.dp)
-            .background(
-                brush = Brush.linearGradient(listOf(Color(0xFFCD9C70), Color(0xFF6B3E22))),
-                shape = RoundedCornerShape(RecipeTheme.radii.hairlineCard),
-            ),
-    )
+            .clip(shape)
+            // The gradient is the placeholder behind a still-loading or absent photo.
+            .background(brush = warmGradient, shape = shape),
+    ) {
+        if (photoUri != null) {
+            AsyncImage(
+                model = photoUri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
 }
 
 @Composable

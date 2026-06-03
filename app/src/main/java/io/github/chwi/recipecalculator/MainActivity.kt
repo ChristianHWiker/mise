@@ -24,7 +24,9 @@ import io.github.chwi.recipecalculator.navigation.Settings
 import io.github.chwi.recipecalculator.ui.security.IntegrityWarningBanner
 import io.github.chwi.recipecalculator.ui.security.LockGate
 import io.github.chwi.recipecalculator.ui.security.LockGateViewModel
+import io.github.chwi.recipecalculator.ui.theme.AppThemeViewModel
 import io.github.chwi.recipecalculator.ui.theme.RecipeCalculatorTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -39,7 +41,9 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            RecipeCalculatorTheme {
+            val themeViewModel: AppThemeViewModel = hiltViewModel()
+            val themeState by themeViewModel.state.collectAsStateWithLifecycle()
+            RecipeCalculatorTheme(themeMode = themeState.mode, accent = themeState.accent) {
                 // Resolve the LockGate VM once at the activity level so the background hook below
                 // and the gate Composable share state (both go through Hilt's same retained VM).
                 val lockGateVm: LockGateViewModel = hiltViewModel()

@@ -1,6 +1,8 @@
 package io.github.chwi.recipecalculator.data.settings
 
 import io.github.chwi.recipecalculator.core.rational.FractionStyle
+import io.github.chwi.recipecalculator.core.theme.AccentTheme
+import io.github.chwi.recipecalculator.core.theme.ThemeMode
 import io.github.chwi.recipecalculator.core.units.UnitSystem
 import kotlinx.coroutines.flow.Flow
 
@@ -13,4 +15,8 @@ interface SettingsRepository {
     suspend fun setFractionStyle(style: FractionStyle)
 
     suspend fun setUnitSystem(system: UnitSystem)
+
+    suspend fun setThemeMode(mode: ThemeMode)
+
+    suspend fun setAccent(accent: AccentTheme)
 }

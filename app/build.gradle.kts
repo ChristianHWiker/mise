@@ -102,6 +102,9 @@ dependencies {
     // Drag-to-reorder for the recipe editor lists
     implementation(libs.reorderable)
 
+    // Image loading (recipe photos: bundled sample drawable, file:// captures, content:// picks)
+    implementation(libs.coil.compose)
+
     // CameraX + ML Kit on-device text recognition (OCR capture flow)
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)

@@ -60,14 +60,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import io.github.chwi.recipecalculator.ui.theme.RecipeTheme
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -336,19 +339,29 @@ private fun EditorTopBar(
 
 @Composable
 private fun PhotoBlock(uri: String?, onPick: () -> Unit, onClear: () -> Unit) {
+    val shape = RoundedCornerShape(RecipeTheme.radii.hairlineCard)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = RecipeTheme.spacing.xxl)
             .padding(top = RecipeTheme.spacing.xs)
             .height(180.dp)
+            .clip(shape)
             .background(
                 brush = Brush.linearGradient(listOf(Color(0xFFCD9C70), Color(0xFF6B3E22))),
-                shape = RoundedCornerShape(RecipeTheme.radii.hairlineCard),
+                shape = shape,
             )
             .clickable(onClick = onPick),
         contentAlignment = Alignment.Center,
     ) {
+        if (uri != null) {
+            AsyncImage(
+                model = uri,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         Text(
             text = if (uri == null) "TAP TO CHOOSE A PHOTO" else "TAP TO REPLACE",
             style = RecipeTheme.typography.kicker,

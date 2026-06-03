@@ -5,6 +5,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.chwi.recipecalculator.core.rational.FractionStyle
+import io.github.chwi.recipecalculator.core.theme.AccentTheme
+import io.github.chwi.recipecalculator.core.theme.ThemeMode
 import io.github.chwi.recipecalculator.core.units.UnitSystem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -29,6 +31,8 @@ class SettingsRepositoryImpl @Inject constructor(
             AppSettings(
                 fractionStyle = prefs[FRACTION_STYLE].toEnum(FractionStyle.INLINE),
                 unitSystem = prefs[UNIT_SYSTEM].toEnum(UnitSystem.US),
+                themeMode = prefs[THEME_MODE].toEnum(ThemeMode.SYSTEM),
+                accent = prefs[ACCENT].toEnum(AccentTheme.SAGE),
             )
         }
 
@@ -40,9 +44,19 @@ class SettingsRepositoryImpl @Inject constructor(
         dataStore.edit { it[UNIT_SYSTEM] = system.name }
     }
 
+    override suspend fun setThemeMode(mode: ThemeMode) {
+        dataStore.edit { it[THEME_MODE] = mode.name }
+    }
+
+    override suspend fun setAccent(accent: AccentTheme) {
+        dataStore.edit { it[ACCENT] = accent.name }
+    }
+
     private companion object {
         val FRACTION_STYLE = stringPreferencesKey("fraction_style")
         val UNIT_SYSTEM = stringPreferencesKey("unit_system")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
+        val ACCENT = stringPreferencesKey("accent")
     }
 }
 

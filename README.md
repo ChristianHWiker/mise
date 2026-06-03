@@ -1,25 +1,27 @@
 # Recipe Calculator
 
-`v0.5.0` · Kotlin + Jetpack Compose + Material 3 · minSdk 24 · local-only (no accounts, no cloud sync)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white)
+![minSdk](https://img.shields.io/badge/minSdk-24-555555)
+![License](https://img.shields.io/badge/License-All%20Rights%20Reserved-red.svg)
 
-<!--
-Screenshots placeholder — drop PNGs into docs/screenshots/ and uncomment.
+`v0.5.0` · Kotlin + Jetpack Compose + Material 3 · minSdk 24 · local-only (no accounts, no cloud sync)
 
 <table>
   <tr>
     <td><img src="docs/screenshots/home.png" width="200" alt="Home"></td>
     <td><img src="docs/screenshots/detail.png" width="200" alt="Recipe detail"></td>
     <td><img src="docs/screenshots/reverse-scale.png" width="200" alt="Reverse scale"></td>
-    <td><img src="docs/screenshots/capture.png" width="200" alt="OCR capture"></td>
+    <td><img src="docs/screenshots/settings.png" width="200" alt="Settings"></td>
   </tr>
   <tr align="center">
     <td><sub>Home</sub></td>
     <td><sub>Recipe detail</sub></td>
     <td><sub>Reverse-scale sheet</sub></td>
-    <td><sub>OCR capture confirm</sub></td>
+    <td><sub>Settings &amp; theming</sub></td>
   </tr>
 </table>
--->
 
 ## What it does
 
@@ -111,8 +113,8 @@ Google's auto-backup.
 
 ## Build & run
 
-Requires JDK 17 (Android Studio's bundled JBR works; on the command line, point
-`JAVA_HOME` at the Android Studio `jbr/` directory).
+Requires JDK 17+ (the toolchain here uses Android Studio's bundled JBR, which is JDK 21).
+On the command line, point `JAVA_HOME` at the Android Studio `jbr/` directory.
 
 ```bash
 # Build either flavor
@@ -153,6 +155,10 @@ app/src/main/java/io/github/chwi/recipecalculator/
 - [`PLAN.md`](PLAN.md) — phase-by-phase build plan and changelog
 - [`docs/phase4-walkthrough.html`](docs/phase4-walkthrough.html) — explainer of the Phase 4 security stack
 - [`docs/gradle-flavors-explainer.html`](docs/gradle-flavors-explainer.html) — how the flavor split works under the hood
+
+## License
+
+All rights reserved (see [LICENSE](LICENSE))
 
 ---
 

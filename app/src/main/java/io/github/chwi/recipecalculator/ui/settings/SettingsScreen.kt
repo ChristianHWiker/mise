@@ -1,7 +1,11 @@
 package io.github.chwi.recipecalculator.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,7 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -28,8 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.chwi.recipecalculator.core.rational.FractionStyle
+import io.github.chwi.recipecalculator.core.theme.AccentTheme
+import io.github.chwi.recipecalculator.core.theme.ThemeMode
 import io.github.chwi.recipecalculator.core.units.UnitSystem
 import io.github.chwi.recipecalculator.ui.theme.RecipeTheme
+import io.github.chwi.recipecalculator.ui.theme.swatch
 
 private val PagePadding = 22.dp
 
@@ -65,6 +74,38 @@ fun SettingsScreen(
             style = RecipeTheme.typography.detailH1,
             color = MaterialTheme.colorScheme.onBackground,
         )
+        Spacer(Modifier.height(RecipeTheme.spacing.huge))
+
+        // Resolve what light/dark the swatches should preview, mirroring the theme's own logic.
+        val previewDark = when (settings.themeMode) {
+            ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+        }
+
+        SettingGroup(label = "Theme") {
+            ThemeMode.entries.forEach { mode ->
+                OptionRow(
+                    label = mode.displayName(),
+                    selected = settings.themeMode == mode,
+                    onClick = { viewModel.setThemeMode(mode) },
+                )
+            }
+        }
+
+        Spacer(Modifier.height(RecipeTheme.spacing.huge))
+
+        SettingGroup(label = "Accent") {
+            AccentTheme.entries.forEach { accent ->
+                AccentRow(
+                    label = accent.displayName(),
+                    swatch = accent.swatch(previewDark),
+                    selected = settings.accent == accent,
+                    onClick = { viewModel.setAccent(accent) },
+                )
+            }
+        }
+
         Spacer(Modifier.height(RecipeTheme.spacing.huge))
 
         SettingGroup(label = "Fraction style") {
@@ -150,6 +191,47 @@ private fun OptionRow(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
+private fun AccentRow(
+    label: String,
+    swatch: androidx.compose.ui.graphics.Color,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = RecipeTheme.spacing.xl),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(16.dp)
+                    .background(swatch, CircleShape)
+                    .border(1.dp, RecipeTheme.colors.rule, CircleShape),
+            )
+            Spacer(Modifier.width(RecipeTheme.spacing.md))
+            Text(
+                text = label,
+                style = RecipeTheme.typography.body,
+                color = if (selected) MaterialTheme.colorScheme.onBackground else RecipeTheme.colors.muted,
+            )
+        }
+        if (selected) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = "Selected",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+    HorizontalDivider(color = RecipeTheme.colors.rule)
+}
+
+@Composable
 private fun ToggleRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     Row(
         modifier = Modifier
@@ -178,4 +260,17 @@ private fun FractionStyle.displayName(): String = when (this) {
 private fun UnitSystem.displayName(): String = when (this) {
     UnitSystem.US -> "US  ·  cups, tsp, tbsp"
     UnitSystem.METRIC -> "Metric  ·  grams"
+}
+
+private fun ThemeMode.displayName(): String = when (this) {
+    ThemeMode.SYSTEM -> "Follow system"
+    ThemeMode.LIGHT -> "Light"
+    ThemeMode.DARK -> "Dark"
+}
+
+private fun AccentTheme.displayName(): String = when (this) {
+    AccentTheme.TERRACOTTA -> "Terracotta"
+    AccentTheme.SAGE -> "Sage"
+    AccentTheme.PLUM -> "Plum"
+    AccentTheme.SLATE -> "Slate"
 }

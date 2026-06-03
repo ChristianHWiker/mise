@@ -25,6 +25,7 @@ data class RecipeRowUi(
     val yieldText: String,
     val timeText: String,
     val pinned: Boolean,
+    val photoUri: String?,
     val toneSeed: Int,
 )
 
@@ -125,6 +126,7 @@ private fun RecipeWithIngredients.toRowUi() = RecipeRowUi(
     yieldText = "${recipe.servings} ${recipe.yieldUnit}",
     timeText = "${recipe.timeMinutes} min",
     pinned = recipe.pinned,
+    photoUri = recipe.photoUri,
     toneSeed = (recipe.id % Int.MAX_VALUE).toInt(),
 )
 

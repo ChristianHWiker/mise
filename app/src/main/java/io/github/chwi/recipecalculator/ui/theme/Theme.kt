@@ -5,19 +5,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import io.github.chwi.recipecalculator.core.theme.AccentTheme
+import io.github.chwi.recipecalculator.core.theme.ThemeMode
 
 /**
  * App theme. Wraps Material 3 with the editorial palette and type scale, and provides the
- * extended tokens (rule/muted/accentSoft, the named type styles, spacing) through
- * [RecipeTheme]. Dark mode follows the system; no dynamic color — the brand palette is fixed.
+ * extended tokens (rule/muted/accentSoft, the named type styles, spacing) through [RecipeTheme].
+ *
+ * Light vs. dark resolves from [themeMode] (SYSTEM defers to the OS, as the app originally did);
+ * the brand [accent] selects one of the curated palettes. No dynamic color — the palette is the
+ * brand. Both values are user preferences (Settings → Appearance), fed in at the top of the tree.
  */
 @Composable
 fun RecipeCalculatorTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    accent: AccentTheme = AccentTheme.SAGE,
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    val recipeColors = if (darkTheme) DarkRecipeColors else LightRecipeColors
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+    val colorScheme = if (darkTheme) darkColorSchemeFor(accent) else lightColorSchemeFor(accent)
+    val recipeColors = if (darkTheme) darkRecipeColorsFor(accent) else lightRecipeColorsFor(accent)
 
     CompositionLocalProvider(
         LocalRecipeColors provides recipeColors,

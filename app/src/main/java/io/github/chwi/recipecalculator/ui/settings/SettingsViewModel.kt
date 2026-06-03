@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.chwi.recipecalculator.core.rational.FractionStyle
 import io.github.chwi.recipecalculator.core.security.AppLockController
+import io.github.chwi.recipecalculator.core.theme.AccentTheme
+import io.github.chwi.recipecalculator.core.theme.ThemeMode
 import io.github.chwi.recipecalculator.core.units.UnitSystem
 import io.github.chwi.recipecalculator.data.settings.AppSettings
 import io.github.chwi.recipecalculator.data.settings.SettingsRepository
@@ -39,6 +41,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setUnitSystem(system: UnitSystem) {
         viewModelScope.launch { repository.setUnitSystem(system) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { repository.setThemeMode(mode) }
+    }
+
+    fun setAccent(accent: AccentTheme) {
+        viewModelScope.launch { repository.setAccent(accent) }
     }
 
     fun setBiometricLockEnabled(enabled: Boolean) {
